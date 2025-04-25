@@ -7,6 +7,7 @@ import typing
 
 import pygame as pg
 import pygame_widgets as pw  # type: ignore
+import pygame_menu as pm
 
 from pygame.locals import Rect
 from pygame_widgets.button import ButtonArray # type: ignore
@@ -47,56 +48,27 @@ SCREEN_WIDTH, SCREEN_HEIGHT = screen.get_size()
 SYSFONT = pg.font.get_default_font()
 DEFAULT_FONT = pg.font.SysFont(SYSFONT, 24)
 
-def quit() -> None:
-    """Terminates game and stops code."""
-    pg.quit()
-    sys.exit()
+
+mytheme = pm.themes.Theme(title_bar_style=pm.widgets.MENUBAR_STYLE_UNDERLINE_TITLE,
+                          title_font_color = DARK_GREY,
+                          selection_color = BLACK,
+                          fps = FRAMES_PER_SECOND,
+                          widget_font = pm.font.FONT_MUNRO,
+                          title_font = pm.font.FONT_8BIT,
+                          widget_font_size = 40
+                          )
 
 def main() -> None:
     """Main menu for game."""
-    dt: float = 0.0
-    running: bool = True
+    menu = pm.Menu('Game Name', 400, 300,
+                       theme=mytheme)
 
-    # Game preparation
-    pg.display.set_caption(WINDOW_TITLE)
+    menu.add.text_input('Name: ', default='John Doe', maxchar=10)
+    menu.add.selector('Difficulty: ', [('Hard', 1), ('Easy', 2)])
+    menu.add.button('Play', lambda: play_game())
+    menu.add.button('Quit', pm.events.EXIT)
 
-    while running:
-        screen.fill(BLACK)
-
-        # Menu title
-        title_text: pg.Surface = DEFAULT_FONT.render("Main Menu", True, WHITE)
-        title_rect: pg.Rect = title_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4))
-
-
-        # Menu options
-        menu_options: list[str] = ["Play", "Settings", "Quit"]
-        buttonArray = ButtonArray(
-            screen,
-            SCREEN_WIDTH // 2 - 100,  # X-coordinate
-            SCREEN_HEIGHT // 2 - 100,  # Y-coordinate
-            200,  # Width
-            300,  # Height
-            (1, 3),  # grid shape
-            border=10,  # Distance between buttons and edge of array
-            texts=("Play", "Settings", "Quit"),  # Sets the texts of each button (counts left to right then top to bottom)
-            onClicks=(lambda: play_game(), lambda: print('2'), lambda: quit()),
-            font=DEFAULT_FONT,
-            fontSize=40
-        )
-        
-        # Input events
-        for event in (events := pg.event.get()):
-            if event.type == pg.QUIT:
-                running = False
-
-        # Draw screen
-        screen.blit(title_text, title_rect)
-
-        pw.update(events)
-        pg.display.flip()
-        dt = clock.tick(FRAMES_PER_SECOND) / 1000
-
-    quit()
+    menu.mainloop(screen) # Run
 
 
 def play_game() -> None:
@@ -109,7 +81,7 @@ def play_game() -> None:
     while running:
         screen.fill(BLACK)
 
-        # Quit game
+        # Event handling
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 running = False
