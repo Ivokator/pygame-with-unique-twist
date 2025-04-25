@@ -56,12 +56,18 @@ mytheme = pm.themes.Theme(title_bar_style=pm.widgets.MENUBAR_STYLE_UNDERLINE_TIT
                           widget_font = pm.font.FONT_MUNRO,
                           title_font = pm.font.FONT_8BIT,
                           widget_font_size = 40
+                    
                           )
+
+def quit() -> None:
+    """Terminates game."""
+    pg.quit()
+    sys.exit()
 
 def main() -> None:
     """Main menu for game."""
     menu = pm.Menu('Game Name', 400, 300,
-                       theme=mytheme)
+                    theme=mytheme)
 
     menu.add.text_input('Name: ', default='John Doe', maxchar=10)
     menu.add.selector('Difficulty: ', [('Hard', 1), ('Easy', 2)])
@@ -90,7 +96,7 @@ def play_game() -> None:
         pg.display.flip()
         dt = clock.tick(FRAMES_PER_SECOND) / 1000
 
-    pg.quit()
+    quit()
 
 
 if __name__ == "__main__":
