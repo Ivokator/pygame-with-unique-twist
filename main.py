@@ -20,7 +20,7 @@ WINDOW_TITLE: str = "some game"
 FRAMES_PER_SECOND: int = 100
 RESOLUTION: tuple[int, int] = (800, 600)
 
-INPUT_KEYS: list[int] = [pg.K_f, pg.K_g, pg.K_h, pg.K_j]
+PLAYER_SIZE: int = 50
 
 # -----------------------------------------------------------------
 
@@ -64,18 +64,29 @@ def quit() -> None:
     pg.quit()
     sys.exit()
 
+def about() -> None:
+    """Shows about menu."""
+
+    menu = pm.Menu('About', 400, 300,
+                    theme=mytheme)
+    menu.add.label('Game by: Jasper Wan\nPython 3.12.4 - 3.13\nCreated April 2025', font_size = 30)
+    menu.add.button('Return', lambda: main())
+    menu.mainloop(screen)
+
+
 def main() -> None:
     """Main menu for game."""
+    pg.display.set_caption(WINDOW_TITLE)
     menu = pm.Menu('Game Name', 400, 300,
                     theme=mytheme)
 
     menu.add.text_input('Name: ', default='John Doe', maxchar=10)
     menu.add.selector('Difficulty: ', [('Hard', 1), ('Easy', 2)])
     menu.add.button('Play', lambda: play_game())
+    menu.add.button('About', lambda: about())
     menu.add.button('Quit', pm.events.EXIT)
 
     menu.mainloop(screen) # Run
-
 
 def play_game() -> None:
     dt: float = 0.0
@@ -83,6 +94,10 @@ def play_game() -> None:
 
     # Game preparation
     pg.display.set_caption(WINDOW_TITLE)
+    
+    player_rect: pg.Rect = Rect(
+        SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4, PLAYER_SIZE, PLAYER_SIZE
+    )
 
     while running:
         screen.fill(BLACK)
@@ -92,6 +107,30 @@ def play_game() -> None:
             if event.type == pg.QUIT:
                 running = False
 
+
+        # Create player
+
+        pg.draw.rect(screen, BLUE, player_rect)
+
+
+        # Player input
+        keys = pg.key.get_pressed()
+
+        if keys[pg.K_a]:
+            player_rect.x -= int(300 * dt)
+
+        if keys[pg.K_d]:
+            player_rect.x += int(300 * dt)
+
+        if keys[pg.K_w]:
+            player_rect.y -= int(300 * dt)
+
+        if keys[pg.K_s]:
+            player_rect.y += int(300 * dt)
+
+
+        player_rect.clamp_ip(screen.get_rect())
+        
         # Draw screen
         pg.display.flip()
         dt = clock.tick(FRAMES_PER_SECOND) / 1000
