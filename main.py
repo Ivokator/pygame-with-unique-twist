@@ -5,11 +5,11 @@ import threading
 import time
 import typing
 
-import pygame as pg
+import pygame as pg # type: ignore
 import pygame_widgets as pw  # type: ignore
 import pygame_menu as pm
 
-from pygame.locals import Rect
+from pygame import Rect
 from pygame_widgets.button import ButtonArray # type: ignore
 
 # Initialize
