@@ -82,60 +82,88 @@ def main() -> None:
 
     menu.add.text_input('Name: ', default='John Doe', maxchar=10)
     menu.add.selector('Difficulty: ', [('Hard', 1), ('Easy', 2)])
-    menu.add.button('Play', lambda: play_game())
+    menu.add.button('Play', lambda: Game())
     menu.add.button('About', lambda: about())
     menu.add.button('Quit', pm.events.EXIT)
 
     menu.mainloop(screen) # Run
 
-def play_game() -> None:
-    dt: float = 0.0
-    running: bool = True
+class Player(object):
+    def __init__(self, x, y, width, height) -> None:
+        self.left = False
+        self.right = False
 
-    # Game preparation
-    pg.display.set_caption(WINDOW_TITLE)
-    
-    player_rect: pg.Rect = Rect(
-        SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4, PLAYER_SIZE, PLAYER_SIZE
-    )
+        self.player_rect: pg.Rect = Rect(x, y, width, height)
 
-    while running:
-        screen.fill(BLACK)
-
-        # Event handling
-        for event in pg.event.get():
-            if event.type == pg.QUIT:
-                running = False
-
-
-        # Create player
-
-        pg.draw.rect(screen, BLUE, player_rect)
-
-
+    def move(self, dt):
         # Player input
         keys = pg.key.get_pressed()
 
         if keys[pg.K_a]:
-            player_rect.x -= int(300 * dt)
+            self.player_rect.x -= int(300 * dt)
 
         if keys[pg.K_d]:
-            player_rect.x += int(300 * dt)
+            self.player_rect.x += int(300 * dt)
 
         if keys[pg.K_w]:
-            player_rect.y -= int(300 * dt)
+            self.player_rect.y -= int(300 * dt)
 
         if keys[pg.K_s]:
-            player_rect.y += int(300 * dt)
+            self.player_rect.y += int(300 * dt)
 
+class Game(object):
+    def __init__(self) -> None:
+        self.dt: float = 0.0
+        self.running: bool = True
+        self.surface: pg.Surface = pg.Surface(RESOLUTION)
 
-        player_rect.clamp_ip(screen.get_rect())
-        
-        # Draw screen
-        pg.display.flip()
-        dt = clock.tick(FRAMES_PER_SECOND) / 1000
+        self.window_width: int = SCREEN_WIDTH
+        self.window_height: int = SCREEN_HEIGHT
 
-    quit()
+        self.play_game()
+
+    def draw(self) -> None:
+        self.surface.blit(screen, (0, 0))
+
+        transformed_screen = pg.transform.scale(screen,(self.window_width, self.window_height))
+        screen.blit(transformed_screen, (0, 0))
+        pg.display.update()
+
+    def play_game(self) -> None:
+
+        # Game preparation
+        pg.display.set_caption(WINDOW_TITLE)
+
+        player = Player(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4, PLAYER_SIZE, PLAYER_SIZE)
+
+        while self.running:
+            screen.fill(BLACK)
+
+            # Event handling
+            self.event()
+
+            # Player movement
+
+            player.move(self.dt)
+            pg.draw.rect(self.surface, BLUE, player.player_rect)
+            
+            player.player_rect.clamp_ip(screen.get_rect())
+            
+            # Draw screen
+            self.draw()
+            self.dt = clock.tick(FRAMES_PER_SECOND) / 1000
+
+        quit()
+
+    def event(self) -> None:
+        """Handles events."""
+        for event in pg.event.get():
+            if event.type == pg.QUIT:
+                self.running = False
+            elif event.type == pg.KEYDOWN:
+                if event.key == pg.K_ESCAPE:
+                    self.running = False
+    
 
 
 if __name__ == "__main__":
