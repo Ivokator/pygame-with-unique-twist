@@ -12,27 +12,11 @@ import pygame_menu as pm
 from pygame.locals import Rect
 from pygame_widgets.button import ButtonArray # type: ignore
 
+from classes import PlayerBullet
+from constants import *
+
 # Initialize
 pg.init()
-
-# ------------------------ GAME CONSTANTS ------------------------
-WINDOW_TITLE: str = "some game"
-FRAMES_PER_SECOND: int = 100
-RESOLUTION: tuple[int, int] = (800, 600)
-
-PLAYER_SIZE: int = 50
-
-# -----------------------------------------------------------------
-
-# Basic colours
-WHITE: tuple[int, ...] = (255, 255, 255)
-BLACK: tuple[int, ...] = (0, 0, 0)
-BLUE: tuple[int, ...] = (0, 0, 255)
-GREEN: tuple[int, ...] = (0, 255, 0)
-RED: tuple[int, ...] = (255, 0, 0)
-
-DARK_GREY: tuple[int, ...] = (64, 64, 64)
-DARKER_GREY: tuple[int, ...] = (32, 32, 32)
 
 # Screen / Clock
 
@@ -44,20 +28,6 @@ SCREEN_HEIGHT: int
 
 SCREEN_WIDTH, SCREEN_HEIGHT = screen.get_size()
 
-# SCORE TEXT
-SYSFONT = pg.font.get_default_font()
-DEFAULT_FONT = pg.font.SysFont(SYSFONT, 24)
-
-
-mytheme = pm.themes.Theme(title_bar_style=pm.widgets.MENUBAR_STYLE_UNDERLINE_TITLE,
-                          title_font_color = DARK_GREY,
-                          selection_color = BLACK,
-                          fps = FRAMES_PER_SECOND,
-                          widget_font = pm.font.FONT_MUNRO,
-                          title_font = pm.font.FONT_8BIT,
-                          widget_font_size = 40
-                    
-                          )
 
 def quit() -> None:
     """Terminates game."""
@@ -69,7 +39,7 @@ def about() -> None:
 
     menu = pm.Menu('About', 400, 300,
                     theme=mytheme)
-    menu.add.label('Game by: Jasper Wan\nPython 3.12.4 - 3.13\nCreated April 2025', font_size = 30)
+    menu.add.label('Game by: Jasper Wan\nPython 3.12.4 - 3.13\nCreated April 2025\nv. DEV', font_size = 30)
     menu.add.button('Return', lambda: main())
     menu.mainloop(screen)
 
@@ -110,6 +80,13 @@ class Player(object):
 
         if keys[pg.K_s]:
             self.player_rect.y += int(300 * dt)
+        
+        if keys[pg.K_n]:
+            # Shoot bullet
+            bullet = PlayerBullet(self.player_rect.x, self.player_rect.y, width=10, height=10, direction=1)
+            pg.draw.rect(screen, BLUE, bullet.player_bullet_rect)
+
+
 
 class Game(object):
     def __init__(self) -> None:
