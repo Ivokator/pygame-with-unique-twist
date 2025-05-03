@@ -6,7 +6,6 @@ import time
 import typing
 
 import pygame as pg # type: ignore
-import pygame_widgets as pw  # type: ignore
 import pygame_menu as pm
 
 from pygame import Rect
@@ -20,7 +19,7 @@ pg.init()
 
 # Screen / Clock
 
-screen: pg.Surface = pg.display.set_mode(RESOLUTION)
+screen: pg.Surface = pg.display.set_mode(RESOLUTION, pg.RESIZABLE | pg.SCALED, vsync=1)
 clock: pg.time.Clock = pg.time.Clock()
 
 SCREEN_WIDTH: int
@@ -59,13 +58,28 @@ def main() -> None:
     menu.mainloop(screen) # Run
 
 class Player(object):
-    def __init__(self, x, y, width, height) -> None:
-        self.left = False
-        self.right = False
+    """Player class.
 
-        self.player_rect: pg.Rect = Rect(x, y, width, height)
+    Args:
+        x (int): The x-coordinate of the player.
+        y (int): The y-coordinate of the player.
+        width (int): The width of the player.
+        height (int): The height of the player.
+    
+    Attributes:
+        player_rect (pg.Rect): The rectangle representing the player.
+        left (bool): Indicates if the player is moving left.
+        right (bool): Indicates if the player is moving right.
+        speed (int): The speed at which the player moves.
+    """
+    def __init__(self, x: int, y: int, width: int, height: int) -> None:
+        self.left: bool = False
+        self.right: bool = False
 
-    def move(self, dt):
+        self.player_rect: pg.Rect = pg.Rect(x, y, width, height)
+        self.speed = 0
+
+    def move(self, dt) -> None:
         # Player input
         keys = pg.key.get_pressed()
 
@@ -88,33 +102,54 @@ class Player(object):
 
 
 
+    def draw(self) -> None:
+        """Draws the player."""
+        pg.draw.rect(game.surface, BLUE, self.player_rect)
+
+    def draw(self) -> None:
+        """Draws the player."""
+        pg.draw.rect(game.surface, BLUE, self.player_rect)
+
 class Game(object):
     def __init__(self) -> None:
         self.dt: float = 0.0
         self.running: bool = True
         self.surface: pg.Surface = pg.Surface(RESOLUTION)
 
-        self.window_width: int = SCREEN_WIDTH
-        self.window_height: int = SCREEN_HEIGHT
-
-        self.play_game()
-
     def draw(self) -> None:
-        self.surface.blit(screen, (0, 0))
+        screen_height = screen.get_height()
+        screen_width = screen_height * (RESOLUTION[0] / RESOLUTION[1])
 
-        transformed_screen = pg.transform.scale(screen,(self.window_width, self.window_height))
-        screen.blit(transformed_screen, (0, 0))
-        pg.display.update()
+        screen_surface = pg.Surface((screen_width, screen_height))
+
+        # Scale up the surface to fit the screen
+        pg.transform.scale(
+            self.surface,
+            (screen_width, screen_height),
+            screen_surface)
+
+        # Blit and center surface on the screen
+        screen.blit(
+            screen_surface,
+            ((screen.get_width() - self.surface.get_width()) / 4, 0))
+
+        pg.display.flip()
 
     def play_game(self) -> None:
 
         # Game preparation
         pg.display.set_caption(WINDOW_TITLE)
 
+        # Intialize player
         player = Player(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4, PLAYER_SIZE, PLAYER_SIZE)
 
+
+
+
+        self.running = True
         while self.running:
             screen.fill(BLACK)
+            self.surface.fill(BLACK)
 
             # Event handling
             self.event()
@@ -122,9 +157,8 @@ class Game(object):
             # Player movement
 
             player.move(self.dt)
-            pg.draw.rect(self.surface, BLUE, player.player_rect)
-            
-            player.player_rect.clamp_ip(screen.get_rect())
+            player.draw()
+            player.player_rect.clamp_ip(self.surface.get_rect())
             
             # Draw screen
             self.draw()
@@ -140,8 +174,34 @@ class Game(object):
             elif event.type == pg.KEYDOWN:
                 if event.key == pg.K_ESCAPE:
                     self.running = False
+
+    def main_menu(self) -> None:
+        """Returns to the main menu."""
+        self.running = False
+        pg.display.set_caption(WINDOW_TITLE)
+        menu = pm.Menu('Game Name', SCREEN_WIDTH * 2 // 3, SCREEN_HEIGHT * 2 // 3,
+                        theme=mytheme)
+
+        menu.add.text_input('Name: ', default='John Doe', maxchar=10)
+        menu.add.selector('Difficulty: ', [('Hard', 1), ('Easy', 2)])
+        menu.add.button('Play', lambda: self.play_game())
+        menu.add.button('About', lambda: self.about())
+        menu.add.button('Quit', pm.events.EXIT)
+
+        menu.mainloop(screen)
+    
+    def about(self) -> None:
+        """Shows about menu."""
+
+        menu = pm.Menu('About', SCREEN_WIDTH * 2 // 3, SCREEN_HEIGHT * 2 // 3,
+                        theme=mytheme)
+        menu.add.label('Game by: Jasper Wan\nPython 3.12.4 - 3.13\nCreated April 2025')
+        menu.add.button('Return', lambda: self.main_menu())
+        menu.mainloop(screen)
+
     
 
 
 if __name__ == "__main__":
-    main()
+    game = Game()
+    game.main_menu()
