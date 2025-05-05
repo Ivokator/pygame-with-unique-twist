@@ -6,7 +6,7 @@ pg.init()
 # ------------------------ GAME CONSTANTS ------------------------
 WINDOW_TITLE: str = "some game"
 FRAMES_PER_SECOND: int = 100
-RESOLUTION: tuple[int, int] = (800, 600)
+RESOLUTION: tuple[int, int] = (1280, 960)
 
 PLAYER_SIZE: int = 50
 
@@ -34,6 +34,5 @@ mytheme = pm.themes.Theme(title_bar_style=pm.widgets.MENUBAR_STYLE_UNDERLINE_TIT
                           fps = FRAMES_PER_SECOND,
                           widget_font = pm.font.FONT_MUNRO,
                           title_font = pm.font.FONT_8BIT,
-                          widget_font_size = 40
-                    
+                          widget_font_size = RESOLUTION[0] // 20,
                           )

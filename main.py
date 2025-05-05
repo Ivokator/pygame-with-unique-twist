@@ -67,7 +67,7 @@ class Player(object):
         height (int): The height of the player.
     
     Attributes:
-        player_rect (pg.Rect): The rectangle representing the player.
+        rect (pg.Rect): The rectangle representing the player.
         left (bool): Indicates if the player is moving left.
         right (bool): Indicates if the player is moving right.
         speed (int): The speed at which the player moves.
@@ -76,41 +76,54 @@ class Player(object):
         self.left: bool = False
         self.right: bool = False
 
-        self.player_rect: pg.Rect = pg.Rect(x, y, width, height)
+        self.rect: pg.Rect = pg.Rect(x, y, width, height)
         self.speed = 0
+
+        self.direction: int = 0 # left: 0, right: 1
+
+        self.bullets: typing.List[PlayerBullet] = []
+        self.bullet_cooldown_ms: float = 100
+        self.cooldown_timer: int = 0
 
     def move(self, dt) -> None:
         # Player input
         keys = pg.key.get_pressed()
 
         if keys[pg.K_a]:
-            self.player_rect.x -= int(300 * dt)
+            self.rect.x -= int(300 * dt)
 
         if keys[pg.K_d]:
-            self.player_rect.x += int(300 * dt)
+            self.rect.x += int(300 * dt)
 
         if keys[pg.K_w]:
-            self.player_rect.y -= int(300 * dt)
+            self.rect.y -= int(300 * dt)
 
         if keys[pg.K_s]:
-            self.player_rect.y += int(300 * dt)
+            self.rect.y += int(300 * dt)
         
-        if keys[pg.K_n]:
-            # Shoot bullet
-            bullet = PlayerBullet(self.player_rect.x, self.player_rect.y, width=10, height=10, direction=1)
-            pg.draw.rect(screen, BLUE, bullet.player_bullet_rect)
 
-
+    def fire_bullet(self) -> None:
+        """Fires a bullet."""
+        # Create a bullet at the player's position
+        # and set its angle and speed
+        if self.cooldown_timer > self.bullet_cooldown_ms:
+            self.cooldown_timer = 0
+            bullet = PlayerBullet(self.rect.x, self.rect.y + (self.rect.height // 2), width=10, height=10, angle = self.direction * -180, speed=10)
+            self.bullets.append(bullet)
+    
+    def switch_direction(self) -> None:
+        """Switches the direction of the player."""
+        if self.direction == 0:
+            self.direction = 1
+        else:
+            self.direction = 0
 
     def draw(self) -> None:
         """Draws the player."""
-        pg.draw.rect(game.surface, BLUE, self.player_rect)
-
-    def draw(self) -> None:
-        """Draws the player."""
-        pg.draw.rect(game.surface, BLUE, self.player_rect)
+        pg.draw.rect(game.surface, BLUE, self.rect)
 
 class Game(object):
+
     def __init__(self) -> None:
         self.dt: float = 0.0
         self.running: bool = True
@@ -141,10 +154,7 @@ class Game(object):
         pg.display.set_caption(WINDOW_TITLE)
 
         # Intialize player
-        player = Player(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4, PLAYER_SIZE, PLAYER_SIZE)
-
-
-
+        self.player = Player(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4, PLAYER_SIZE, PLAYER_SIZE)
 
         self.running = True
         while self.running:
@@ -152,13 +162,21 @@ class Game(object):
             self.surface.fill(BLACK)
 
             # Event handling
+            self.player.cooldown_timer += clock.get_time()
             self.event()
 
-            # Player movement
+            # Draw bullets
+            for bullet in self.player.bullets:
+                bullet.update()
+                bullet.draw(self.surface)
 
-            player.move(self.dt)
-            player.draw()
-            player.player_rect.clamp_ip(self.surface.get_rect())
+            # Draw/update player
+            self.player.draw()
+            self.player.move(self.dt)
+
+            
+
+            self.player.rect.clamp_ip(self.surface.get_rect())
             
             # Draw screen
             self.draw()
@@ -174,6 +192,15 @@ class Game(object):
             elif event.type == pg.KEYDOWN:
                 if event.key == pg.K_ESCAPE:
                     self.running = False
+
+                # Fire bullet
+                elif event.key == pg.K_n:
+                    self.player.fire_bullet()
+
+                # Switch direction
+                elif event.key == pg.K_m:
+                    self.player.switch_direction()
+                
 
     def main_menu(self) -> None:
         """Returns to the main menu."""
