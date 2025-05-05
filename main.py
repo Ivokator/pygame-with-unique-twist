@@ -1,4 +1,6 @@
 import asyncio
+import math
+import os
 import random
 import sys
 import threading
@@ -26,6 +28,13 @@ SCREEN_WIDTH: int
 SCREEN_HEIGHT: int
 
 SCREEN_WIDTH, SCREEN_HEIGHT = screen.get_size()
+
+# Images
+test_space = pg.image.load(os.path.join("./images/background","test_space.png")).convert()
+
+
+# Background tiling
+test_space_tiles = math.ceil(SCREEN_WIDTH / (test_space.get_width())) + 1
 
 
 def quit() -> None:
@@ -90,10 +99,14 @@ class Player(object):
         keys = pg.key.get_pressed()
 
         if keys[pg.K_a]:
-            self.rect.x -= int(300 * dt)
+            #self.rect.x -= int(300 * dt)
+            self.direction = 1
+            game.background_scroll += int(300 * dt)
 
         if keys[pg.K_d]:
-            self.rect.x += int(300 * dt)
+            #self.rect.x += int(300 * dt)
+            self.direction = 0
+            game.background_scroll -= int(300 * dt)
 
         if keys[pg.K_w]:
             self.rect.y -= int(300 * dt)
@@ -129,6 +142,9 @@ class Game(object):
         self.running: bool = True
         self.surface: pg.Surface = pg.Surface(RESOLUTION)
 
+        self.background_scroll: int = 0 # Background scroll counter
+        self.current_background = test_space
+
     def draw(self) -> None:
         screen_height = screen.get_height()
         screen_width = screen_height * (RESOLUTION[0] / RESOLUTION[1])
@@ -146,7 +162,33 @@ class Game(object):
             screen_surface,
             ((screen.get_width() - self.surface.get_width()) / 4, 0))
 
+
         pg.display.flip()
+
+    def background(self) -> None:
+        # Draw the background
+
+        surface_width = self.surface.get_width()
+        surface_height = self.surface.get_height()
+
+        background_width = self.current_background.get_width()
+        background_height = self.current_background.get_height()
+
+        # Transform background to right size
+        pg.transform.scale(self.current_background, (surface_width, surface_height))
+
+
+        for i in range(test_space_tiles):
+            self.surface.blit(self.current_background, 
+                (self.background_scroll + i * background_width, 
+                surface_height // 2 - self.current_background.get_height() // 2))
+
+
+        # Reset scroll if background has looped
+        if abs(self.background_scroll) >= background_width:
+            self.background_scroll = 0
+
+        print(self.background_scroll)
 
     def play_game(self) -> None:
 
@@ -158,9 +200,12 @@ class Game(object):
 
         self.running = True
         while self.running:
+            # Update background
             screen.fill(BLACK)
             self.surface.fill(BLACK)
+            self.background()
 
+        
             # Event handling
             self.player.cooldown_timer += clock.get_time()
             self.event()
@@ -197,10 +242,6 @@ class Game(object):
                 elif event.key == pg.K_n:
                     self.player.fire_bullet()
 
-                # Switch direction
-                elif event.key == pg.K_m:
-                    self.player.switch_direction()
-                
 
     def main_menu(self) -> None:
         """Returns to the main menu."""

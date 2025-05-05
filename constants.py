@@ -1,3 +1,5 @@
+import os
+
 import pygame as pg
 import pygame_menu as pm
 
@@ -36,3 +38,4 @@ mytheme = pm.themes.Theme(title_bar_style=pm.widgets.MENUBAR_STYLE_UNDERLINE_TIT
                           title_font = pm.font.FONT_8BIT,
                           widget_font_size = RESOLUTION[0] // 20,
                           )
+
