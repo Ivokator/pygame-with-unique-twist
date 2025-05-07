@@ -1,8 +1,9 @@
 import pygame as pg
 from constants import *
 
-class PlayerBullet(object):
+class PlayerBullet(pg.sprite.Sprite):
     def __init__(self, x: float, y: float, width: int, height: int, angle, speed: int) -> None:
+        pg.sprite.Sprite.__init__(self)
         self.x = x
         self.y = y
         self.width = width
@@ -13,6 +14,8 @@ class PlayerBullet(object):
         self.velocity = pg.math.Vector2()
         self.velocity.from_polar((self.speed, self.angle)) # polar coordinates
 
+        self.rect = pg.Rect(self.x, self.y, self.width, self.height)
+
     def draw(self, screen) -> None:
         pg.draw.rect(screen, WHITE, pg.Rect(self.x, self.y, self.width, self.height))
 
@@ -21,8 +24,9 @@ class PlayerBullet(object):
         self.y += self.velocity.y
 
 
-class EnemyBullet(object):
+class EnemyBullet(pg.sprite.Sprite):
     def __init__(self, x: int, y: int, speed: int, angle, radius) -> None:
+        pg.sprite.Sprite.__init__(self)
         self.x = x
         self.y = y
         self.radius = radius

@@ -66,12 +66,12 @@ def main() -> None:
 
     menu.mainloop(screen) # Run
 
-class Player(object):
+class Player(pg.sprite.Sprite):
     """Player class.
 
     Args:
         x (int): The x-coordinate of the player.
-        y (int): The y-coordinate of the player.
+        y (int): The y-coordinate of the player.nn
         width (int): The width of the player.
         height (int): The height of the player.
     
@@ -82,6 +82,8 @@ class Player(object):
         speed (int): The speed at which the player moves.
     """
     def __init__(self, x: int, y: int, width: int, height: int) -> None:
+        pg.sprite.Sprite.__init__(self)
+
         self.left: bool = False
         self.right: bool = False
 
@@ -123,6 +125,7 @@ class Player(object):
             self.cooldown_timer = 0
             bullet = PlayerBullet(self.rect.x, self.rect.y + (self.rect.height // 2), width=10, height=10, angle = self.direction * -180, speed=10)
             self.bullets.append(bullet)
+            bullet.add(camera_group)
     
     def switch_direction(self) -> None:
         """Switches the direction of the player."""
@@ -134,6 +137,12 @@ class Player(object):
     def draw(self) -> None:
         """Draws the player."""
         pg.draw.rect(game.surface, BLUE, self.rect)
+
+
+
+
+
+
 
 class Game(object):
 
@@ -162,7 +171,6 @@ class Game(object):
             screen_surface,
             ((screen.get_width() - self.surface.get_width()) / 4, 0))
 
-
         pg.display.flip()
 
     def background(self) -> None:
@@ -174,9 +182,9 @@ class Game(object):
         background_width = self.current_background.get_width()
         background_height = self.current_background.get_height()
 
+        print(background_width, background_height)
         # Transform background to right size
         pg.transform.scale(self.current_background, (surface_width, surface_height))
-
 
         for i in range(test_space_tiles):
             self.surface.blit(self.current_background, 
@@ -197,6 +205,7 @@ class Game(object):
 
         # Intialize player
         self.player = Player(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4, PLAYER_SIZE, PLAYER_SIZE)
+        self.player.add(camera_group)
 
         self.running = True
         while self.running:
@@ -219,12 +228,14 @@ class Game(object):
             self.player.draw()
             self.player.move(self.dt)
 
-            
-
             self.player.rect.clamp_ip(self.surface.get_rect())
             
             # Draw screen
-            self.draw()
+            #self.draw()
+            camera_group.update()
+            camera_group.draw(screen, self.surface)
+            pg.display.update()
+
             self.dt = clock.tick(FRAMES_PER_SECOND) / 1000
 
         quit()
@@ -268,8 +279,46 @@ class Game(object):
         menu.mainloop(screen)
 
     
+class CameraGroup(pg.sprite.Group):
+    def __init__(self):
+        super().__init__()
+        self.offset = pg.math.Vector2(-SCREEN_WIDTH // 2, -SCREEN_HEIGHT // 2)
+
+        self.camera_borders = {'left': 200, 'right': 200, 'top': 100, 'bottom': 100}
+        l = self.camera_borders['left']
+        t = self.camera_borders['top']
+        w = game.surface.get_size()[0] - (self.camera_borders['left'] + self.camera_borders['right'])
+        h = game.surface.get_size()[1] - (self.camera_borders['top'] + self.camera_borders['bottom'])
+
+        self.camera_rect = pg.Rect(l,t,w,h)
+
+
+        self.ground_rect = game.surface.get_rect(topleft=(0, 0))
+
+        self.speed = 5
+    
+    
+    def draw(self, screen, surface):
+
+        surface.blit(surface, self.ground_rect)
+
+        # Draw the background
+        # Active elements
+        for sprite in self.sprites():
+            offset_pos = sprite.rect.topleft + self.offset
+            screen.blit(surface, offset_pos)
+
+    def keyboard_control(self):
+        keys = pg.key.get_pressed()
+        if keys[pygame.K_a]: self.camera_rect.x -= self.keyboard_speed
+        if keys[pygame.K_d]: self.camera_rect.x += self.keyboard_speed
+        if keys[pygame.K_w]: self.camera_rect.y -= self.keyboard_speed
+        if keys[pygame.K_s]: self.camera_rect.y += self.keyboard_speed
+
 
 
 if __name__ == "__main__":
     game = Game()
+
+    camera_group = CameraGroup() 
     game.main_menu()
