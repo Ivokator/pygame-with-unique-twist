@@ -11,9 +11,9 @@ import pygame as pg # type: ignore
 import pygame_menu as pm
 
 from pygame import Rect
-from pygame_widgets.button import ButtonArray # type: ignore
+#from pygame_widgets.button import ButtonArray # type: ignore
 
-from classes import PlayerBullet
+from classes import PlayerBullet, EnemyBullet, Enemy
 from constants import *
 
 # Initialize
@@ -144,7 +144,10 @@ class Game(object):
 
         self.background_scroll: int = 0 # Background scroll counter
         self.current_background = test_space
-
+        
+        self.enemies: typing.List[Enemy] = []
+        
+        
     def draw(self) -> None:
         screen_height = screen.get_height()
         screen_width = screen_height * (RESOLUTION[0] / RESOLUTION[1])
@@ -182,7 +185,9 @@ class Game(object):
             self.surface.blit(self.current_background, 
                 (self.background_scroll + i * background_width, 
                 surface_height // 2 - self.current_background.get_height() // 2))
-
+            
+        for enemy in self.enemies:
+            enemy.update(self.background_scroll)
 
         # Reset scroll if background has looped
         if abs(self.background_scroll) >= background_width:
@@ -219,7 +224,15 @@ class Game(object):
             self.player.draw()
             self.player.move(self.dt)
 
-            
+            #spawn enemies
+            if random.randint(1, 100) == 1:
+                enemy = Enemy(random.randint(0, SCREEN_WIDTH), random.randint(0, SCREEN_HEIGHT))
+                self.enemies.append(enemy)
+                
+            # Draw enemies
+            for enemy in self.enemies:
+                #enemy.update()
+                enemy.draw(self.surface)
 
             self.player.rect.clamp_ip(self.surface.get_rect())
             

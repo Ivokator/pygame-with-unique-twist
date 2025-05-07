@@ -1,6 +1,7 @@
 import pygame as pg
 from constants import *
 
+
 class PlayerBullet(object):
     def __init__(self, x: float, y: float, width: int, height: int, angle, speed: int) -> None:
         self.x = x
@@ -22,7 +23,7 @@ class PlayerBullet(object):
 
 
 class EnemyBullet(object):
-    def __init__(self, x: int, y: int, speed: int, angle, radius) -> None:
+    def __init__(self, spawn_x: int, spawn_y: int, speed: int, angle, radius) -> None:
         self.x = x
         self.y = y
         self.radius = radius
@@ -40,7 +41,22 @@ class EnemyBullet(object):
         self.y += self.velocity.y
 
 
+class Enemy(object):
+    def __init__(self, spawn_x: int, spawn_y: int) -> None:
+        self.spawn_x = spawn_x
+        self.spawn_y = spawn_y
+        self.x = spawn_x
+        self.y = spawn_y
+        self.width = 50
+        self.height = 50
+        self.speed = 5
+        
+    def draw(self, screen) -> None:
+        pg.draw.rect(screen, GREEN, pg.Rect(self.x, self.y, self.width, self.height))
 
+    def update(self, background_scroll: int) -> None:
+        self.x = self.spawn_x + background_scroll
+    
 
 if __name__ == "__main__":
     # Test the classes
