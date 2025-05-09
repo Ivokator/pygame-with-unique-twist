@@ -1,3 +1,9 @@
+<<<<<<< Updated upstream
+=======
+import typing
+import math
+
+>>>>>>> Stashed changes
 import pygame as pg
 from constants import *
 
@@ -24,10 +30,15 @@ class PlayerBullet(object):
 
 class EnemyBullet(object):
     def __init__(self, spawn_x: int, spawn_y: int, speed: int, angle, radius) -> None:
+<<<<<<< Updated upstream
         self.x = x
         self.y = y
+=======
+        self.x = spawn_x
+        self.y = spawn_y
+        self.offset_x = 0
+>>>>>>> Stashed changes
         self.radius = radius
-
         self.speed = speed
         self.angle = angle
         self.velocity = pg.math.Vector2()
@@ -37,7 +48,8 @@ class EnemyBullet(object):
        pg.draw.circle(screen, RED, (self.x,self.y), self.radius)
     
     def update(self):
-        self.x += self.velocity.x
+        # using tanangle
+        self.x += self.velocity.x + self.offset_x
         self.y += self.velocity.y
 
 
@@ -50,13 +62,55 @@ class Enemy(object):
         self.width = 50
         self.height = 50
         self.speed = 5
+<<<<<<< Updated upstream
+=======
+        self.bullets: typing.List[EnemyBullet] = []
+
+        self.offset_x = 0
+        #print(f"Enemy created at ({self.x}, {self.y})")
+>>>>>>> Stashed changes
         
     def draw(self, screen) -> None:
         pg.draw.rect(screen, GREEN, pg.Rect(self.x, self.y, self.width, self.height))
 
+<<<<<<< Updated upstream
     def update(self, background_scroll: int) -> None:
         self.x = self.spawn_x + background_scroll
     
+=======
+    def update(self, offset_x: int) -> None:
+        self.x = self.spawn_x + offset_x
+        
+    def angle_to_player(self, player_x: int, player_y: int) -> float:
+        dx = player_x - self.x
+        dy = player_y - self.y
+        #cant divide by 0 lol
+        if dx == 0:
+            dx = 0.1
+        tanangle = dy / dx
+        angle = math.degrees(math.atan(tanangle))
+        return angle
+    
+    def fire_bullet(self, player_x: int, player_y: int) -> EnemyBullet:
+        angle = self.angle_to_player(player_x, player_y)
+        bullet = EnemyBullet(self.x, self.y, speed=2, angle=angle, radius=5)
+        return bullet
+        
+
+class EnemyGroup(pg.sprite.Group):
+    def __init__(self) -> None:
+        super().__init__()
+        self.enemies: typing.List[Enemy] = []
+
+    def add_enemy(self, enemy: Enemy) -> None:
+        self.enemies.append(enemy)
+        self.add(enemy)
+
+    def update(self, offset_x: int, screen) -> None:
+        for enemy in self.enemies:
+            enemy.update(offset_x)
+            enemy.draw(screen)
+>>>>>>> Stashed changes
 
 if __name__ == "__main__":
     # Test the classes
@@ -65,8 +119,8 @@ if __name__ == "__main__":
     screen = pg.display.set_mode(RESOLUTION)
     clock = pg.time.Clock()
 
-    player_bullet = PlayerBullet(100, 100, 10, 5, speed=5, angle=0, )
-    enemy_bullet = EnemyBullet(200, 200, radius=5, speed=5, angle=45, )
+    player_bullet = PlayerBullet(100, 100, 10, 5, speed=5, angle=0,)
+    enemy_bullet = EnemyBullet(200, 200, radius=5, speed=5, angle=45,)
 
     running: bool = True
     dt = 0.0

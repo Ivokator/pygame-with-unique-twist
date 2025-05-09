@@ -113,6 +113,10 @@ class Player(object):
 
         if keys[pg.K_s]:
             self.rect.y += int(300 * dt)
+            
+        print(game.offset)
+        
+        #print(self.rect.x, self.rect.y)
         
 
     def fire_bullet(self) -> None:
@@ -193,15 +197,20 @@ class Game(object):
         if abs(self.background_scroll) >= background_width:
             self.background_scroll = 0
 
-        print(self.background_scroll)
+        #print(self.background_scroll)
 
     def play_game(self) -> None:
 
         # Game preparation
         pg.display.set_caption(WINDOW_TITLE)
 
-        # Intialize player
+        # Intialize game
         self.player = Player(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4, PLAYER_SIZE, PLAYER_SIZE)
+<<<<<<< Updated upstream
+=======
+        time_since_last_enemy = 0.0
+        time_since_last_bullet = 0.0
+>>>>>>> Stashed changes
 
         self.running = True
         while self.running:
@@ -215,24 +224,54 @@ class Game(object):
             self.player.cooldown_timer += clock.get_time()
             self.event()
 
-            # Draw bullets
+            # Draw player bullets
             for bullet in self.player.bullets:
                 bullet.update()
                 bullet.draw(self.surface)
+                
+            # Draw enemy bullets
+            for enemy in self.enemy_group.enemies:
+                for bullet in enemy.bullets:
+                    bullet.update()
+                    bullet.draw(self.surface)
 
             # Draw/update player
             self.player.draw()
             self.player.move(self.dt)
 
+<<<<<<< Updated upstream
             #spawn enemies
             if random.randint(1, 100) == 1:
+=======
+            time_since_last_enemy += self.dt
+            time_since_last_bullet += self.dt
+            
+
+            if time_since_last_enemy >= 1:
+                # Spawn enemy
+>>>>>>> Stashed changes
                 enemy = Enemy(random.randint(0, SCREEN_WIDTH), random.randint(0, SCREEN_HEIGHT))
                 self.enemies.append(enemy)
                 
+<<<<<<< Updated upstream
             # Draw enemies
             for enemy in self.enemies:
                 #enemy.update()
                 enemy.draw(self.surface)
+=======
+                
+            # Update enemy group
+            for enemy in self.enemy_group.enemies:
+                enemy.angle_to_player(self.player.rect.x, self.player.rect.y)
+                
+            # Fire enemy bullets
+            if time_since_last_bullet >= 3:
+                for enemy in self.enemy_group.enemies:
+                    enemy_bullet = enemy.fire_bullet(self.player.rect.x, self.player.rect.y)
+                    enemy.bullets.append(enemy_bullet)  # Append to the correct enemy's bullet list
+                time_since_last_bullet = 0
+                    
+>>>>>>> Stashed changes
 
             self.player.rect.clamp_ip(self.surface.get_rect())
             
