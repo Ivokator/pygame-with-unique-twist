@@ -1,3 +1,5 @@
+import typing
+
 import pygame as pg
 from constants import *
 
@@ -39,8 +41,39 @@ class EnemyBullet(object):
         self.x += self.velocity.x
         self.y += self.velocity.y
 
+class Enemy(pg.sprite.Sprite):
+    def __init__(self, spawn_x: int, spawn_y: int) -> None:
+        super().__init__()
+        self.spawn_x = spawn_x
+        self.spawn_y = spawn_y
+        self.x = spawn_x
+        self.y = spawn_y
+        self.width = 50
+        self.height = 50
+        self.speed = 5
 
+        self.offset_x = 0
+        print(f"Enemy created at ({self.x}, {self.y})")
+        
+    def draw(self, screen) -> None:
+        pg.draw.rect(screen, GREEN, pg.Rect(self.x, self.y, self.width, self.height))
 
+    def update(self, offset_x: int) -> None:
+        self.x = self.spawn_x + offset_x
+
+class EnemyGroup(pg.sprite.Group):
+    def __init__(self) -> None:
+        super().__init__()
+        self.enemies: typing.List[Enemy] = []
+
+    def add_enemy(self, enemy: Enemy) -> None:
+        self.enemies.append(enemy)
+        self.add(enemy)
+
+    def update(self, offset_x: int, screen) -> None:
+        for enemy in self.enemies:
+            enemy.update(offset_x)
+            enemy.draw(screen)
 
 if __name__ == "__main__":
     # Test the classes

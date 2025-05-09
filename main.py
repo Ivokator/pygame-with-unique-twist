@@ -13,7 +13,7 @@ import pygame_menu as pm
 from pygame import Rect
 from pygame_widgets.button import ButtonArray # type: ignore
 
-from classes import PlayerBullet
+from classes import PlayerBullet, EnemyBullet, Enemy, EnemyGroup
 from constants import *
 
 # Initialize
@@ -102,11 +102,13 @@ class Player(object):
             #self.rect.x -= int(300 * dt)
             self.direction = 1
             game.background_scroll += int(300 * dt)
+            game.offset += int(300 * dt)
 
         if keys[pg.K_d]:
             #self.rect.x += int(300 * dt)
             self.direction = 0
             game.background_scroll -= int(300 * dt)
+            game.offset -= int(300 * dt)
 
         if keys[pg.K_w]:
             self.rect.y -= int(300 * dt)
@@ -142,7 +144,8 @@ class Game(object):
         self.running: bool = True
         self.surface: pg.Surface = pg.Surface(RESOLUTION)
 
-        self.background_scroll: int = 0 # Background scroll counter
+        self.background_scroll: float | int = 0 # Background scroll counter
+        self.offset: float | int = 0 # Offset for background
         self.current_background = test_space
 
     def draw(self) -> None:
@@ -157,11 +160,12 @@ class Game(object):
             (screen_width, screen_height),
             screen_surface)
 
+        self.enemy_group.update(int(self.offset), screen_surface)
+
         # Blit and center surface on the screen
         screen.blit(
             screen_surface,
             ((screen.get_width() - self.surface.get_width()) / 4, 0))
-
 
         pg.display.flip()
 
@@ -177,14 +181,13 @@ class Game(object):
         # Transform background to right size
         pg.transform.scale(self.current_background, (surface_width, surface_height))
 
-
-        for i in range(test_space_tiles):
-            self.surface.blit(self.current_background, 
-                (self.background_scroll + i * background_width, 
-                surface_height // 2 - self.current_background.get_height() // 2))
-
+        scaled_background = pg.transform.scale(self.current_background, (background_width, surface_height))
 
         # Reset scroll if background has looped
+        for i in range(-1, test_space_tiles + 1):
+            self.surface.blit(scaled_background, 
+            (self.background_scroll % background_width + i * background_width, 0))
+
         if abs(self.background_scroll) >= background_width:
             self.background_scroll = 0
 
@@ -194,9 +197,11 @@ class Game(object):
 
         # Game preparation
         pg.display.set_caption(WINDOW_TITLE)
+        self.enemy_group = EnemyGroup()
 
         # Intialize player
         self.player = Player(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4, PLAYER_SIZE, PLAYER_SIZE)
+        time_since_last_enemy = 0.0
 
         self.running = True
         while self.running:
@@ -219,7 +224,23 @@ class Game(object):
             self.player.draw()
             self.player.move(self.dt)
 
-            
+            time_since_last_enemy += self.dt
+
+            if time_since_last_enemy >= 1:
+                # Spawn enemy
+                enemy = Enemy(random.randint(0, SCREEN_WIDTH), random.randint(0, SCREEN_HEIGHT))
+
+                # Spawn no more than 5 enemies at once
+                if len(self.enemy_group.enemies) < 5:
+                    self.enemy_group.add_enemy(enemy)
+                else:
+                    # Remove the oldest enemy
+                    self.enemy_group.enemies.pop(0)
+                    self.enemy_group.remove(self.enemy_group.enemies[0])
+
+                time_since_last_enemy = 0
+                
+
 
             self.player.rect.clamp_ip(self.surface.get_rect())
             
@@ -271,5 +292,6 @@ class Game(object):
 
 
 if __name__ == "__main__":
+
     game = Game()
     game.main_menu()
