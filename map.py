@@ -91,12 +91,12 @@ def draw_mountains(surface: pg.surface.Surface, noise_data: list[float], screen_
     noise_data = [max(0, value) for value in noise_data]
     points = [(i + offset, (screen_height - noise_data[i] / amp * screen_height) - screen_height // 8) for i in range(len(noise_data))]
 
-    gfxdraw.filled_polygon(surface, points, (0, 255, 255))
+    gfxdraw.filled_polygon(surface, points, (96, 135, 106))
 
     for i in range(1, len(noise_data)):
             pg.draw.line(
             surface=surface,
-            color=(255, 255, 255),
+            color=(137, 196, 152),
             start_pos=(i - 1 + offset, screen_height - noise_data[i - 1] / amp * screen_height - (screen_height // 8)),
             end_pos=(i + offset, screen_height - noise_data[i] / amp * screen_height - (screen_height // 8)),
             width=3
@@ -113,7 +113,7 @@ if __name__ == "__main__":
 
 
     screen.fill((0, 0, 0))
-
+    print(pg.font.get_fonts())
         
     draw_mountains(screen, generate_mountains(), 960, 0)
     pg.display.flip()

@@ -8,7 +8,7 @@ pg.init()
 # ------------------------ GAME CONSTANTS ------------------------
 WINDOW_TITLE: str = "some game"
 FRAMES_PER_SECOND: int = 100
-RESOLUTION: tuple[int, int] = (1280, 960)
+RESOLUTION: tuple[int, int] = (1280, 864)
 
 PLAYER_SIZE: int = 50
 

@@ -31,12 +31,14 @@ SCREEN_HEIGHT: int
 
 SCREEN_WIDTH, SCREEN_HEIGHT = screen.get_size()
 
+GAMEPLAY_WIDTH: int = SCREEN_WIDTH
+GAMEPLAY_HEIGHT: int = SCREEN_HEIGHT * 9 // 10
+
 # Images
 test_space = pg.image.load(os.path.join("./images/background","test_space.png")).convert()
 
 # Background tiling
 test_space_tiles = math.ceil(SCREEN_WIDTH / (test_space.get_width())) + 1
-
 
 def quit() -> None:
     """Terminates game."""
@@ -61,7 +63,7 @@ def main() -> None:
 
     menu.add.text_input('Name: ', default='John Doe', maxchar=10)
     menu.add.selector('Difficulty: ', [('Hard', 1), ('Easy', 2)])
-    menu.add.button('Play', lambda: Game())
+    menu.add.button('Play', lambda: Game()) 
     menu.add.button('About', lambda: about())
     menu.add.button('Quit', pm.events.EXIT)
 
@@ -116,7 +118,6 @@ class Player(object):
 
         if keys[pg.K_s]:
             self.rect.y += int(300 * dt)
-        
 
     def fire_bullet(self) -> None:
         """Fires a bullet."""
@@ -149,6 +150,10 @@ class Game(object):
         self.offset: float | int = 0 # Offset for background
         self.current_background = test_space
 
+        self.top_widget: pg.Surface = pg.Surface((SCREEN_WIDTH, SCREEN_HEIGHT // 6))
+        self.text_score = DEFAULT_FONT.render("000000", True, WHITE)
+
+
     def draw(self) -> None:
         screen_height = screen.get_height()
         screen_width = screen_height * (RESOLUTION[0] / RESOLUTION[1])
@@ -168,6 +173,7 @@ class Game(object):
             screen_surface,
             ((screen.get_width() - self.surface.get_width()) / 4, 0))
 
+        self.render_top_widget()
         pg.display.flip()
 
     def background(self) -> None:
@@ -178,8 +184,6 @@ class Game(object):
 
         background_width = self.current_background.get_width()
         background_height = self.current_background.get_height()
-
-        
 
         # Transform background to right size
         pg.transform.scale(self.current_background, (surface_width, surface_height))
@@ -194,7 +198,15 @@ class Game(object):
         if abs(self.background_scroll) >= background_width:
             self.background_scroll = 0
 
-        
+    def render_top_widget(self) -> None:
+        # Draw the top widget
+        self.top_widget.fill(DARK_GREY)
+        screen.blit(self.top_widget, (0, 0))
+
+        #self.top_widget.blit(self.text_score, (SCREEN_WIDTH // 2 - self.text_score.get_width() // 2, SCREEN_HEIGHT // 20))
+
+        pg.display.flip()
+
     def play_game(self) -> None:
 
         # Game preparation
