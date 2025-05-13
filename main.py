@@ -228,12 +228,26 @@ class Game(object):
             for bullet in self.player.bullets:
                 bullet.update()
                 bullet.draw(self.surface)
+<<<<<<< Updated upstream
                 
+=======
+            
+            #Draw enemies
+            for enemy in self.enemy_group.enemies:
+                enemy.update(int(self.offset))
+                enemy.draw(self.surface)
+                enemy.fire_bullet(self.player.rect.x, self.player.rect.y)
+            
+>>>>>>> Stashed changes
             # Draw enemy bullets
             for enemy in self.enemy_group.enemies:
                 for bullet in enemy.bullets:
                     bullet.update()
                     bullet.draw(self.surface)
+<<<<<<< Updated upstream
+=======
+            
+>>>>>>> Stashed changes
 
             # Draw/update player
             self.player.draw()

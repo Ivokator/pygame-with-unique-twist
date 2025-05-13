@@ -6,6 +6,8 @@ import math
 >>>>>>> Stashed changes
 import pygame as pg
 from constants import *
+import math
+import random
 
 
 class PlayerBullet(object):
@@ -29,6 +31,7 @@ class PlayerBullet(object):
 
 
 class EnemyBullet(object):
+<<<<<<< Updated upstream
     def __init__(self, spawn_x: int, spawn_y: int, speed: int, angle, radius) -> None:
 <<<<<<< Updated upstream
         self.x = x
@@ -38,19 +41,30 @@ class EnemyBullet(object):
         self.y = spawn_y
         self.offset_x = 0
 >>>>>>> Stashed changes
+=======
+    def __init__(self, x: int, y: int, speed: int, angle, radius) -> None:
+        self.rect = pg.Rect(x, y, radius * 2, radius * 2)
+>>>>>>> Stashed changes
         self.radius = radius
         self.speed = speed
         self.angle = angle
-        self.velocity = pg.math.Vector2()
-        self.velocity.from_polar((self.speed, self.angle)) # polar coordinates
 
+        self.velocity_x = math.cos(math.radians(self.angle)) * self.speed
+        self.velocity_y = math.sin(math.radians(self.angle)) * self.speed
+        
     def draw(self, screen):
-       pg.draw.circle(screen, RED, (self.x,self.y), self.radius)
+       pg.draw.rect(screen, RED, self.rect)
     
     def update(self):
+<<<<<<< Updated upstream
         # using tanangle
         self.x += self.velocity.x + self.offset_x
         self.y += self.velocity.y
+=======
+        #print(f"Enemy bullet at ({self.x}, {self.y})")
+        self.rect.x += self.velocity_x
+        self.rect.y += self.velocity_y
+>>>>>>> Stashed changes
 
 
 class Enemy(object):
@@ -67,7 +81,12 @@ class Enemy(object):
         self.bullets: typing.List[EnemyBullet] = []
 
         self.offset_x = 0
+<<<<<<< Updated upstream
         #print(f"Enemy created at ({self.x}, {self.y})")
+>>>>>>> Stashed changes
+=======
+        
+        self.bullets: typing.List[EnemyBullet] = []
 >>>>>>> Stashed changes
         
     def draw(self, screen) -> None:
@@ -81,6 +100,7 @@ class Enemy(object):
     def update(self, offset_x: int) -> None:
         self.x = self.spawn_x + offset_x
         
+<<<<<<< Updated upstream
     def angle_to_player(self, player_x: int, player_y: int) -> float:
         dx = player_x - self.x
         dy = player_y - self.y
@@ -96,6 +116,17 @@ class Enemy(object):
         bullet = EnemyBullet(self.x, self.y, speed=2, angle=angle, radius=5)
         return bullet
         
+=======
+    
+    def fire_bullet(self, player_x: int, player_y: int) -> None:
+        self.dx = player_x - self.x
+        self.dy = player_y - self.y
+        angle = math.degrees(math.atan2(self.dy, self.dx)) + random.randint(-2, 2) # randomize angle
+        i = random.randint(0, 1000)
+        if i < 5:
+            bullet = EnemyBullet(self.x, self.y, radius=5, speed=2, angle=angle)
+            self.bullets.append(bullet)
+>>>>>>> Stashed changes
 
 class EnemyGroup(pg.sprite.Group):
     def __init__(self) -> None:
