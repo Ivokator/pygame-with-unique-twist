@@ -13,6 +13,8 @@ import pygame_menu as pm
 from pygame import Rect
 from pygame_widgets.button import ButtonArray # type: ignore
 
+import map
+
 from classes import PlayerBullet, EnemyBullet, Enemy, EnemyGroup
 from constants import *
 
@@ -31,7 +33,6 @@ SCREEN_WIDTH, SCREEN_HEIGHT = screen.get_size()
 
 # Images
 test_space = pg.image.load(os.path.join("./images/background","test_space.png")).convert()
-
 
 # Background tiling
 test_space_tiles = math.ceil(SCREEN_WIDTH / (test_space.get_width())) + 1
@@ -178,6 +179,8 @@ class Game(object):
         background_width = self.current_background.get_width()
         background_height = self.current_background.get_height()
 
+        
+
         # Transform background to right size
         pg.transform.scale(self.current_background, (surface_width, surface_height))
 
@@ -191,8 +194,7 @@ class Game(object):
         if abs(self.background_scroll) >= background_width:
             self.background_scroll = 0
 
-        print(self.background_scroll)
-
+        
     def play_game(self) -> None:
 
         # Game preparation
@@ -201,6 +203,8 @@ class Game(object):
 
         # Intialize player
         self.player = Player(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4, PLAYER_SIZE, PLAYER_SIZE)
+
+        self.mountain_noise_data = map.generate_mountains()
         time_since_last_enemy = 0.0
 
         self.running = True
@@ -210,6 +214,8 @@ class Game(object):
             self.surface.fill(BLACK)
             self.background()
 
+            # Draw mountains
+            map.draw_mountains(self.surface, self.mountain_noise_data, SCREEN_HEIGHT, self.offset)
         
             # Event handling
             self.player.cooldown_timer += clock.get_time()
