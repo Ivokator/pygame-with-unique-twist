@@ -11,7 +11,7 @@ import pygame as pg # type: ignore
 import pygame_menu as pm
 
 from pygame import Rect
-from pygame_widgets.button import ButtonArray # type: ignore
+#from pygame_widgets.button import ButtonArray # type: ignore
 
 import map
 
@@ -246,6 +246,16 @@ class Game(object):
 
                 time_since_last_enemy = 0
                 
+            #draw enemies
+            for enemy in self.enemy_group.enemies:
+                enemy.update(self.offset)
+                enemy.draw(self.surface)
+                enemy.fire_bullet(self.player.rect.x, self.player.rect.y)
+                
+            for enemy in self.enemy_group.enemies:
+                for bullet in enemy.bullets:
+                    bullet.update()
+                    bullet.draw(self.surface)
 
 
             self.player.rect.clamp_ip(self.surface.get_rect())
