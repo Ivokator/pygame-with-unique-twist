@@ -11,6 +11,7 @@ import pygame as pg # type: ignore
 import pygame_menu as pm
 
 from pygame import Rect
+from pygame.math import Vector2
 from pygame_widgets.button import ButtonArray # type: ignore
 
 import map
@@ -70,54 +71,80 @@ def main() -> None:
     menu.mainloop(screen) # Run
 
 class Player(object):
-    """Player class.
-
-    Args:
-        x (int): The x-coordinate of the player.
-        y (int): The y-coordinate of the player.
-        width (int): The width of the player.
-        height (int): The height of the player.
-    
-    Attributes:
-        rect (pg.Rect): The rectangle representing the player.
-        left (bool): Indicates if the player is moving left.
-        right (bool): Indicates if the player is moving right.
-        speed (int): The speed at which the player moves.
-    """
     def __init__(self, x: int, y: int, width: int, height: int) -> None:
-        self.left: bool = False
-        self.right: bool = False
+        self.rect = pg.Rect(x, y, width, height)
+        self.pos = Vector2(x, y)
 
-        self.rect: pg.Rect = pg.Rect(x, y, width, height)
-        self.speed = 0
+        # Physics parameters
+        self.velocity = Vector2(0, 0)
+        self.accel_x = 0.0
+        self.accel_y = 0.0
 
-        self.direction: int = 0 # left: 0, right: 1
+        self.max_speed = 5
+        self.accel_rate = 50
+        self.drag = 20
+
+        self.direction = 0  # left:0, right:1
 
         self.bullets: typing.List[PlayerBullet] = []
         self.bullet_cooldown_ms: float = 100
         self.cooldown_timer: int = 0
 
     def move(self, dt) -> None:
-        # Player input
         keys = pg.key.get_pressed()
 
+        # HORIZONTAL ACCELERATION 
         if keys[pg.K_a]:
-            #self.rect.x -= int(300 * dt)
+            self.accel_x = -self.accel_rate
             self.direction = 1
-            game.background_scroll += int(300 * dt)
-            game.offset += int(300 * dt)
-
-        if keys[pg.K_d]:
-            #self.rect.x += int(300 * dt)
+        elif keys[pg.K_d]:
+            self.accel_x = self.accel_rate
             self.direction = 0
-            game.background_scroll -= int(300 * dt)
-            game.offset -= int(300 * dt)
+        else:
+            # no input -> apply drag opposite to current velocity
+            if self.velocity.x > 0:
+                self.accel_x = -self.drag
+            elif self.velocity.x < 0:
+                self.accel_x = self.drag
+            else:
+                self.accel_x = 0
 
+        # integrate horizontal velocity
+        self.velocity.x += self.accel_x * dt
+        
+        # if input has flipped drag past zero, zero it out
+        if abs(self.velocity.x) < (self.drag * dt):
+            self.velocity.x = 0
+
+        # clamp to max speed
+        self.velocity.x = max(-self.max_speed, min(self.velocity.x, self.max_speed))
+
+        # VERTICAL ACCELERATION
         if keys[pg.K_w]:
-            self.rect.y -= int(300 * dt)
+            self.accel_y = -self.accel_rate
+        elif keys[pg.K_s]:
+            self.accel_y = self.accel_rate
+        else:
+            if self.velocity.y > 0:
+                self.accel_y = -self.drag
+            elif self.velocity.y < 0:
+                self.accel_y = self.drag
+            else:
+                self.accel_y = 0
 
-        if keys[pg.K_s]:
-            self.rect.y += int(300 * dt)
+        self.velocity.y += self.accel_y * dt
+
+        if abs(self.velocity.y) < (self.drag * dt):
+            self.velocity.y = 0
+
+        print(self.accel_x, self.accel_y)
+
+        self.velocity.y = max(-self.max_speed, min(self.velocity.y, self.max_speed))
+        self.pos += self.velocity
+
+        # assigns Vector2 to Tuple[int, int], but works
+        self.rect.center = self.pos # type: ignore
+
 
     def fire_bullet(self) -> None:
         """Fires a bullet."""
@@ -125,7 +152,7 @@ class Player(object):
         # and set its angle and speed
         if self.cooldown_timer > self.bullet_cooldown_ms:
             self.cooldown_timer = 0
-            bullet = PlayerBullet(self.rect.x, self.rect.y + (self.rect.height // 2), width=10, height=10, angle = self.direction * -180, speed=10)
+            bullet = PlayerBullet(self.rect.x, self.rect.y + (self.rect.height // 2), width=10, height=10, angle = self.direction * -180, speed=30)
             self.bullets.append(bullet)
     
     def switch_direction(self) -> None:
@@ -137,7 +164,7 @@ class Player(object):
 
     def draw(self) -> None:
         """Draws the player."""
-        pg.draw.rect(game.surface, BLUE, self.rect)
+        pg.draw.rect(game.surface, WHITE, self.rect)
 
 class Game(object):
 
@@ -146,12 +173,13 @@ class Game(object):
         self.running: bool = True
         self.surface: pg.Surface = pg.Surface(RESOLUTION)
 
-        self.background_scroll: float | int = 0 # Background scroll counter
-        self.offset: float | int = 0 # Offset for background
+        self.offset: Vector2 = Vector2(0, 0)
         self.current_background = test_space
 
         self.top_widget: pg.Surface = pg.Surface((SCREEN_WIDTH, SCREEN_HEIGHT // 6))
         self.text_score = DEFAULT_FONT.render("000000", True, WHITE)
+
+        self.camera = Vector2(RESOLUTION[0] // 2, RESOLUTION[1] // 2)
 
 
     def draw(self) -> None:
@@ -160,21 +188,34 @@ class Game(object):
 
         screen_surface = pg.Surface((screen_width, screen_height))
 
+        # Calculate the offset for the camera
+        heading = self.player.pos - self.camera
+        self.camera += heading * 0.05
+        self.offset = -self.camera + Vector2(RESOLUTION[0] // 2, RESOLUTION[1] // 2)
+
         # Scale up the surface to fit the screen
         pg.transform.scale(
             self.surface,
             (screen_width, screen_height),
             screen_surface)
 
-        self.enemy_group.update(int(self.offset), screen_surface)
+        self.enemy_group.update(int(self.offset[0]), screen_surface)
 
         # Blit and center surface on the screen
         screen.blit(
             screen_surface,
             ((screen.get_width() - self.surface.get_width()) / 4, 0))
 
-        self.render_top_widget()
+        self.render_top_widget()  
+
         pg.display.flip()
+
+    def render_top_widget(self) -> None:
+        # Draw the top widget
+        self.top_widget.fill(DARK_GREY)
+        screen.blit(self.top_widget, (0, 0))
+
+        #self.top_widget.blit(self.text_score, (SCREEN_WIDTH // 2 - self.text_score.get_width() // 2, SCREEN_HEIGHT // 20))
 
     def background(self) -> None:
         # Draw the background
@@ -190,22 +231,12 @@ class Game(object):
 
         scaled_background = pg.transform.scale(self.current_background, (background_width, surface_height))
 
-        # Reset scroll if background has looped
+        # Scroll background
         for i in range(-1, test_space_tiles + 1):
             self.surface.blit(scaled_background, 
-            (self.background_scroll % background_width + i * background_width, 0))
+            (self.offset[0] % background_width + i * background_width, 0))
 
-        if abs(self.background_scroll) >= background_width:
-            self.background_scroll = 0
 
-    def render_top_widget(self) -> None:
-        # Draw the top widget
-        self.top_widget.fill(DARK_GREY)
-        screen.blit(self.top_widget, (0, 0))
-
-        #self.top_widget.blit(self.text_score, (SCREEN_WIDTH // 2 - self.text_score.get_width() // 2, SCREEN_HEIGHT // 20))
-
-        pg.display.flip()
 
     def play_game(self) -> None:
 
@@ -227,7 +258,7 @@ class Game(object):
             self.background()
 
             # Draw mountains
-            map.draw_mountains(self.surface, self.mountain_noise_data, SCREEN_HEIGHT, self.offset)
+            map.draw_mountains(self.surface, self.mountain_noise_data, SCREEN_HEIGHT, self.offset[0])
         
             # Event handling
             self.player.cooldown_timer += clock.get_time()
