@@ -103,7 +103,7 @@ class Player(object):
             #self.rect.x -= int(300 * dt)
             self.direction = 1
             game.background_scroll += int(300 * dt)
-            game.offset += int(300 * dt)
+            game.offset += int(300 * dt)                
 
         if keys[pg.K_d]:
             #self.rect.x += int(300 * dt)
@@ -139,14 +139,14 @@ class Player(object):
         pg.draw.rect(game.surface, BLUE, self.rect)
 
 class Game(object):
-
     def __init__(self) -> None:
         self.dt: float = 0.0
         self.running: bool = True
         self.surface: pg.Surface = pg.Surface(RESOLUTION)
 
-        self.background_scroll: float | int = 0 # Background scroll counter
-        self.offset: float | int = 0 # Offset for background
+        self.background_scroll: float | int = 0  # Background scroll counter
+        self.offset: float | int = 0  # Offset for background
+        self.previousoffsets: typing.List[int] = []
         self.current_background = test_space
 
     def draw(self) -> None:
@@ -196,19 +196,21 @@ class Game(object):
 
         
     def play_game(self) -> None:
-
         # Game preparation
         pg.display.set_caption(WINDOW_TITLE)
         self.enemy_group = EnemyGroup()
-
-        # Intialize player
         self.player = Player(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4, PLAYER_SIZE, PLAYER_SIZE)
-
         self.mountain_noise_data = map.generate_mountains()
         time_since_last_enemy = 0.0
-
         self.running = True
         while self.running:
+            # Calculate change in offset (d_offset)
+            self.previousoffsets.append(self.offset)
+            if len(self.previousoffsets) > 2:
+                self.previousoffsets.pop(0)
+                
+            print(self.previousoffsets)
+
             # Update background
             screen.fill(BLACK)
             self.surface.fill(BLACK)
@@ -216,7 +218,7 @@ class Game(object):
 
             # Draw mountains
             map.draw_mountains(self.surface, self.mountain_noise_data, SCREEN_HEIGHT, self.offset)
-        
+
             # Event handling
             self.player.cooldown_timer += clock.get_time()
             self.event()
@@ -230,38 +232,38 @@ class Game(object):
             self.player.draw()
             self.player.move(self.dt)
 
+            # Spawn enemies
             time_since_last_enemy += self.dt
-
             if time_since_last_enemy >= 1:
-                # Spawn enemy
                 enemy = Enemy(random.randint(0, SCREEN_WIDTH), random.randint(0, SCREEN_HEIGHT))
-
-                # Spawn no more than 5 enemies at once
                 if len(self.enemy_group.enemies) < 5:
                     self.enemy_group.add_enemy(enemy)
                 else:
-                    # Remove the oldest enemy
                     self.enemy_group.enemies.pop(0)
                     self.enemy_group.remove(self.enemy_group.enemies[0])
-
                 time_since_last_enemy = 0
-                
-            #draw enemies
+
+            # Draw enemies
             for enemy in self.enemy_group.enemies:
                 enemy.update(self.offset)
                 enemy.draw(self.surface)
                 enemy.fire_bullet(self.player.rect.x, self.player.rect.y)
-                
+
             for enemy in self.enemy_group.enemies:
                 for bullet in enemy.bullets:
                     bullet.update()
                     bullet.draw(self.surface)
 
-
+            # Clamp player position
             self.player.rect.clamp_ip(self.surface.get_rect())
-            
+
             # Draw screen
             self.draw()
+
+            # Update previous offset (move this to the end of the loop)
+            self.previous_offset = self.offset
+
+            # Update delta time
             self.dt = clock.tick(FRAMES_PER_SECOND) / 1000
 
         quit()

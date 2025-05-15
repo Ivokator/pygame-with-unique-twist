@@ -39,9 +39,10 @@ class EnemyBullet(object):
     def draw(self, screen):
        pg.draw.circle(screen, RED, (self.x,self.y), self.radius)
     
-    def update(self):
+    def update(self) -> None:
         self.x += self.velocity.x
         self.y += self.velocity.y
+
 
 class Enemy(pg.sprite.Sprite):
     def __init__(self, spawn_x: int, spawn_y: int) -> None:
