@@ -41,6 +41,7 @@ test_space = pg.image.load(os.path.join("./images/background","test_space.png"))
 # Background tiling
 test_space_tiles = math.ceil(SCREEN_WIDTH / (test_space.get_width())) + 1
 
+
 def quit() -> None:
     """Terminates game."""
     pg.quit()
@@ -137,8 +138,6 @@ class Player(object):
         if abs(self.velocity.y) < (self.drag * dt):
             self.velocity.y = 0
 
-        print(self.accel_x, self.accel_y)
-
         self.velocity.y = max(-self.max_speed, min(self.velocity.y, self.max_speed))
         self.pos += self.velocity
 
@@ -171,22 +170,24 @@ class Game(object):
     def __init__(self) -> None:
         self.dt: float = 0.0
         self.running: bool = True
-        self.surface: pg.Surface = pg.Surface(RESOLUTION)
+        self.top_widget: pg.Surface = pg.Surface((SCREEN_WIDTH, SCREEN_HEIGHT // 6))
+        self.surface: pg.Surface = pg.Surface((RESOLUTION[0], RESOLUTION[1] - self.top_widget.get_height()))
 
         self.offset: Vector2 = Vector2(0, 0)
         self.current_background = test_space
 
-        self.top_widget: pg.Surface = pg.Surface((SCREEN_WIDTH, SCREEN_HEIGHT // 6))
-        self.text_score = DEFAULT_FONT.render("000000", True, WHITE)
+        self.text_score = PRESS_START_FONT.render("000000", True, WHITE)
+        self.mini_map: pg.Surface = pg.Surface((SCREEN_WIDTH // 3, self.top_widget.get_height() - TOP_WIDGET_LINE_THICKNESS // 2))
+
 
         self.camera = Vector2(RESOLUTION[0] // 2, RESOLUTION[1] // 2)
 
 
     def draw(self) -> None:
         screen_height = screen.get_height()
-        screen_width = screen_height * (RESOLUTION[0] / RESOLUTION[1])
+        screen_width = (screen_height * (RESOLUTION[0] / RESOLUTION[1]))
 
-        screen_surface = pg.Surface((screen_width, screen_height))
+        screen_surface = pg.Surface((screen_width, screen_height - self.top_widget.get_height()))
 
         # Calculate the offset for the camera
         heading = self.player.pos - self.camera
@@ -196,7 +197,7 @@ class Game(object):
         # Scale up the surface to fit the screen
         pg.transform.scale(
             self.surface,
-            (screen_width, screen_height),
+            (screen_width, screen_height - self.top_widget.get_height()),
             screen_surface)
 
         self.enemy_group.update(int(self.offset[0]), screen_surface)
@@ -204,18 +205,34 @@ class Game(object):
         # Blit and center surface on the screen
         screen.blit(
             screen_surface,
-            ((screen.get_width() - self.surface.get_width()) / 4, 0))
+            ((screen.get_width() - self.surface.get_width()) / 4, self.top_widget.get_height()))
 
         self.render_top_widget()  
-
         pg.display.flip()
 
     def render_top_widget(self) -> None:
         # Draw the top widget
         self.top_widget.fill(DARK_GREY)
-        screen.blit(self.top_widget, (0, 0))
+        self.mini_map.fill(BLACK)
 
-        #self.top_widget.blit(self.text_score, (SCREEN_WIDTH // 2 - self.text_score.get_width() // 2, SCREEN_HEIGHT // 20))
+        pg.draw.line(self.top_widget, WHITE, 
+            (0, self.top_widget.get_height()), 
+            (self.top_widget.get_width(), self.top_widget.get_height()), TOP_WIDGET_LINE_THICKNESS)
+
+        
+
+        screen.blit(self.top_widget, (0, 0))
+        
+        screen.blit(self.text_score, (100, self.top_widget.get_height() - self.text_score.get_height() - 10))
+
+
+        # Draw elements on mini map
+        for enemy in self.enemy_group.enemies:
+            # Get position of actual enemy, and scale it down to the mini map
+            ...
+        screen.blit(self.mini_map, ((self.surface.get_width() // 2) - (self.mini_map.get_width() // 2), 0))
+
+        
 
     def background(self) -> None:
         # Draw the background
@@ -258,7 +275,7 @@ class Game(object):
             self.background()
 
             # Draw mountains
-            map.draw_mountains(self.surface, self.mountain_noise_data, SCREEN_HEIGHT, self.offset[0])
+            map.draw_mountains(self.surface, self.mountain_noise_data, self.surface.get_height(), self.offset[0])
         
             # Event handling
             self.player.cooldown_timer += clock.get_time()
@@ -277,7 +294,7 @@ class Game(object):
 
             if time_since_last_enemy >= 1:
                 # Spawn enemy
-                enemy = Enemy(random.randint(0, SCREEN_WIDTH), random.randint(0, SCREEN_HEIGHT))
+                enemy = Enemy(random.randint(0, SCREEN_WIDTH), random.randint(0, self.surface.get_height()))
 
                 # Spawn no more than 5 enemies at once
                 if len(self.enemy_group.enemies) < 5:
