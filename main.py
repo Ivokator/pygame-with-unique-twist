@@ -32,58 +32,62 @@ SCREEN_HEIGHT: int
 
 SCREEN_WIDTH, SCREEN_HEIGHT = screen.get_size()
 
-GAMEPLAY_WIDTH: int = SCREEN_WIDTH
-GAMEPLAY_HEIGHT: int = SCREEN_HEIGHT * 9 // 10
-
 # Images
 test_space = pg.image.load(os.path.join("./images/background","test_space.png")).convert()
 
 # Background tiling
 test_space_tiles = math.ceil(SCREEN_WIDTH / (test_space.get_width())) + 1
 
+# Camera look-ahead constants
+MAX_LOOKAHEAD: float = SCREEN_WIDTH * 0.6 # pixels ahead of player
+SMOOTHING: float = 0.04 # 0–1 (higher = snappier)
+EDGE_MARGIN = SCREEN_WIDTH * 0.4 # pixels from left/right edge
 
 def quit() -> None:
     """Terminates game."""
     pg.quit()
     sys.exit()
 
-def about() -> None:
-    """Shows about menu."""
-
-    menu = pm.Menu('About', 400, 300,
-                    theme=mytheme)
-    menu.add.label('Game by: Jasper Wan\nPython 3.12.4 - 3.13\nCreated April 2025\nv. DEV', font_size = 30)
-    menu.add.button('Return', lambda: main())
-    menu.mainloop(screen)
-
-
-def main() -> None:
-    """Main menu for game."""
-    pg.display.set_caption(WINDOW_TITLE)
-    menu = pm.Menu('Game Name', 400, 300,
-                    theme=mytheme)
-
-    menu.add.text_input('Name: ', default='John Doe', maxchar=10)
-    menu.add.selector('Difficulty: ', [('Hard', 1), ('Easy', 2)])
-    menu.add.button('Play', lambda: Game()) 
-    menu.add.button('About', lambda: about())
-    menu.add.button('Quit', pm.events.EXIT)
-
-    menu.mainloop(screen) # Run
-
 class Player(object):
+    """Player character class.
+
+    Attributes:
+        rect (pg.Rect): The rectangle representing the player's position and size.
+        pos (pg.Vector2): The player's position as a 2D vector.
+
+        velocity (pg.Vector2): The player's velocity as a 2D vector.
+
+        accel_x (float): The player's acceleration in the x direction.
+        accel_y (float): The player's acceleration in the y direction.
+
+        max_speed_x (int): The maximum speed of the player in the x direction.
+        max_speed_y (int): The maximum speed of the player in the y direction.
+        accel_rate (int): The rate of acceleration for the player.
+        drag (int): The drag applied to the player's movement.
+            - low values give icy movement, high values give sharp and responsive movement 
+
+        direction (int): The direction the player is facing (0 for left, 1 for right).
+            - yes i know this is crap
+        
+        bullets (typing.List[PlayerBullet]): List of bullets fired by the player.
+        bullet_cooldown_ms (float): Cooldown time in milliseconds between firing bullets.
+        cooldown_timer (int): Timer to track bullet cooldown.
+    """
     def __init__(self, x: int, y: int, width: int, height: int) -> None:
-        self.rect = pg.Rect(x, y, width, height)
-        self.pos = Vector2(x, y)
+        self.rect: pg.Rect = pg.Rect(x, y, width, height)
+        self.pos: Vector2 = Vector2(x, y)
 
         # Physics parameters
-        self.velocity = Vector2(0, 0)
-        self.accel_x = 0.0
-        self.accel_y = 0.0
+        self.velocity: Vector2 = Vector2(0, 0)
+        self.accel_x: float = 0.0
+        self.accel_y: float = 0.0
+        self.max_speed_x: int = 10
+        self.max_speed_y: int = 8
+        self.accel_rate: int = 30
 
-        self.max_speed = 5
-        self.accel_rate = 50
-        self.drag = 20
+        # careful that drag does not exceed accel_rate
+        self.drag_x: int = 3 
+        self.drag_y: int = 20
 
         self.direction = 0  # left:0, right:1
 
@@ -104,9 +108,9 @@ class Player(object):
         else:
             # no input -> apply drag opposite to current velocity
             if self.velocity.x > 0:
-                self.accel_x = -self.drag
+                self.accel_x = -self.drag_x
             elif self.velocity.x < 0:
-                self.accel_x = self.drag
+                self.accel_x = self.drag_x
             else:
                 self.accel_x = 0
 
@@ -114,11 +118,11 @@ class Player(object):
         self.velocity.x += self.accel_x * dt
         
         # if input has flipped drag past zero, zero it out
-        if abs(self.velocity.x) < (self.drag * dt):
+        if abs(self.velocity.x) < (self.drag_x * dt):
             self.velocity.x = 0
 
-        # clamp to max speed
-        self.velocity.x = max(-self.max_speed, min(self.velocity.x, self.max_speed))
+        # clamp to max x-axis speed
+        self.velocity.x = max(-self.max_speed_x, min(self.velocity.x, self.max_speed_x))
 
         # VERTICAL ACCELERATION
         if keys[pg.K_w]:
@@ -127,23 +131,24 @@ class Player(object):
             self.accel_y = self.accel_rate
         else:
             if self.velocity.y > 0:
-                self.accel_y = -self.drag
+                self.accel_y = -self.drag_y
             elif self.velocity.y < 0:
-                self.accel_y = self.drag
+                self.accel_y = self.drag_y
             else:
                 self.accel_y = 0
 
         self.velocity.y += self.accel_y * dt
 
-        if abs(self.velocity.y) < (self.drag * dt):
+        if abs(self.velocity.y) < (self.drag_y * dt):
             self.velocity.y = 0
 
-        self.velocity.y = max(-self.max_speed, min(self.velocity.y, self.max_speed))
+        # clamp to max y-axis speed
+        self.velocity.y = max(-self.max_speed_y, min(self.velocity.y, self.max_speed_y))
+
         self.pos += self.velocity
 
         # assigns Vector2 to Tuple[int, int], but works
         self.rect.center = self.pos # type: ignore
-
 
     def fire_bullet(self) -> None:
         """Fires a bullet."""
@@ -160,6 +165,10 @@ class Player(object):
             self.direction = 1
         else:
             self.direction = 0
+    
+    def update(self, offset_x) -> None:
+        """Update the player's position based on the offset."""
+        self.rect.x = self.pos.x + offset_x
 
     def draw(self) -> None:
         """Draws the player."""
@@ -171,36 +180,43 @@ class Game(object):
         self.dt: float = 0.0
         self.running: bool = True
         self.top_widget: pg.Surface = pg.Surface((SCREEN_WIDTH, SCREEN_HEIGHT // 6))
-        self.surface: pg.Surface = pg.Surface((RESOLUTION[0], RESOLUTION[1] - self.top_widget.get_height()))
+        self.surface: pg.Surface = pg.Surface((SCREEN_WIDTH, SCREEN_HEIGHT - self.top_widget.get_height()))
 
         self.offset: Vector2 = Vector2(0, 0)
+        self.focus_offset: Vector2 = Vector2(0, 0)
         self.current_background = test_space
 
         self.text_score = PRESS_START_FONT.render("000000", True, WHITE)
         self.mini_map: pg.Surface = pg.Surface((SCREEN_WIDTH // 3, self.top_widget.get_height() - TOP_WIDGET_LINE_THICKNESS // 2))
 
 
-        self.camera = Vector2(RESOLUTION[0] // 2, RESOLUTION[1] // 2)
-
+        self.camera = Vector2(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
+        self.current_lookahead = 0.0
 
     def draw(self) -> None:
         screen_height = screen.get_height()
-        screen_width = (screen_height * (RESOLUTION[0] / RESOLUTION[1]))
+        screen_width = (screen_height * (SCREEN_WIDTH / SCREEN_HEIGHT))
 
         screen_surface = pg.Surface((screen_width, screen_height - self.top_widget.get_height()))
 
         # Calculate the offset for the camera
         heading = self.player.pos - self.camera
         self.camera += heading * 0.05
-        self.offset = -self.camera + Vector2(RESOLUTION[0] // 2, RESOLUTION[1] // 2)
 
-        # Scale up the surface to fit the screen
+        self.camera_look_ahead()
+
+        self.offset = Vector2(
+            -self.camera.x + SCREEN_WIDTH//2,
+            -self.camera.y + SCREEN_HEIGHT//2
+        )
+
         pg.transform.scale(
             self.surface,
             (screen_width, screen_height - self.top_widget.get_height()),
             screen_surface)
 
-        self.enemy_group.update(int(self.offset[0]), screen_surface)
+        self.player.update(int(self.offset.x))
+        self.enemy_group.update(int(self.offset.x), screen_surface)
 
         # Blit and center surface on the screen
         screen.blit(
@@ -209,6 +225,42 @@ class Game(object):
 
         self.render_top_widget()  
         pg.display.flip()
+
+    def camera_look_ahead(self) -> None:
+        """
+        Smoothly moves the camera towards the player with a look-ahead effect.
+        Locks player within an edge margin by locking the camera to the player when necessary.
+        """
+        desired: float = 0.0
+
+        # If player is moving, set desired look-ahead
+        if abs(self.player.velocity.x) > self.speed_threshold:
+            desired = math.copysign(MAX_LOOKAHEAD, self.player.velocity.x)
+
+        self.current_lookahead += (desired - self.current_lookahead) * SMOOTHING * 0.5
+
+        # compute player’s x in screen space
+        player_screen_x: float = self.player.pos.x + self.offset.x
+
+        violation: float = 0.0
+        print(self.player.velocity.x)
+        if player_screen_x < EDGE_MARGIN:
+            violation = EDGE_MARGIN - player_screen_x
+        elif player_screen_x > SCREEN_WIDTH - EDGE_MARGIN:
+            violation = (SCREEN_WIDTH - EDGE_MARGIN) - player_screen_x
+
+        # Compute a desired camera X that would correct the violation
+        desired_cam_x: float = self.camera.x - violation
+
+        # Smoothly interpolate camera.x toward that desired value
+        self.camera.x += (desired_cam_x - self.camera.x) * SMOOTHING
+
+        # Build target camera x with smoothed look-ahead
+        target_cam_x: float = self.camera.x + self.current_lookahead
+        
+        # formula: a = a + (b - a) * t, where a is the current value, b is the desired value, and t is the smoothing factor
+        self.camera.x += (target_cam_x - self.camera.x) * SMOOTHING
+
 
     def render_top_widget(self) -> None:
         # Draw the top widget
@@ -219,12 +271,10 @@ class Game(object):
             (0, self.top_widget.get_height()), 
             (self.top_widget.get_width(), self.top_widget.get_height()), TOP_WIDGET_LINE_THICKNESS)
 
-        
 
         screen.blit(self.top_widget, (0, 0))
         
         screen.blit(self.text_score, (100, self.top_widget.get_height() - self.text_score.get_height() - 10))
-
 
         # Draw elements on mini map
         for enemy in self.enemy_group.enemies:
@@ -251,7 +301,7 @@ class Game(object):
         # Scroll background
         for i in range(-1, test_space_tiles + 1):
             self.surface.blit(scaled_background, 
-            (self.offset[0] % background_width + i * background_width, 0))
+            (self.offset.x % background_width + i * background_width, 0))
 
 
 
@@ -263,8 +313,9 @@ class Game(object):
 
         # Intialize player
         self.player = Player(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4, PLAYER_SIZE, PLAYER_SIZE)
+        self.speed_threshold = self.player.max_speed_x * 0.7 # threshold for look-ahead
 
-        self.mountain_noise_data = map.generate_mountains()
+        self.peaks = map.generate_peaks(SCREEN_WIDTH * 5)
         time_since_last_enemy = 0.0
 
         self.running = True
@@ -275,7 +326,7 @@ class Game(object):
             self.background()
 
             # Draw mountains
-            map.draw_mountains(self.surface, self.mountain_noise_data, self.surface.get_height(), self.offset[0])
+            map.draw_mountains(self.surface, self.peaks, int(self.offset.x), SCREEN_WIDTH * 5)
         
             # Event handling
             self.player.cooldown_timer += clock.get_time()
@@ -283,6 +334,12 @@ class Game(object):
 
             # Draw bullets
             for bullet in self.player.bullets:
+                # Delete bullet if it goes off screen
+                if bullet.x + SCREEN_WIDTH // 2 < 0 or bullet.x > SCREEN_WIDTH*4:
+                    self.player.bullets.remove(bullet)
+                    del bullet
+                    continue
+
                 bullet.update()
                 bullet.draw(self.surface)
 
@@ -305,8 +362,7 @@ class Game(object):
                     self.enemy_group.remove(self.enemy_group.enemies[0])
 
                 time_since_last_enemy = 0
-                
-
+            
 
             self.player.rect.clamp_ip(self.surface.get_rect())
             
@@ -350,7 +406,7 @@ class Game(object):
 
         menu = pm.Menu('About', SCREEN_WIDTH * 2 // 3, SCREEN_HEIGHT * 2 // 3,
                         theme=mytheme)
-        menu.add.label('Game by: Jasper Wan\nPython 3.12.4 - 3.13\nCreated April 2025')
+        menu.add.label('\nPython 3.12.4 - 3.13\nCreated April 2025\nv. DEV\n-----------------------\nCREDITS:\nIvokator\nSkyVojager')
         menu.add.button('Return', lambda: self.main_menu())
         menu.mainloop(screen)
 

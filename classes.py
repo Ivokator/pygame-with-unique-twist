@@ -48,8 +48,8 @@ class Enemy(pg.sprite.Sprite):
         self.spawn_y = spawn_y
         self.x = spawn_x
         self.y = spawn_y
-        self.width = 50
-        self.height = 50
+        self.width = 30
+        self.height = 30
         self.speed = 5
 
         self.offset_x = 0
