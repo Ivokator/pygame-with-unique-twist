@@ -148,6 +148,7 @@ class Game(object):
         self.offset: float | int = 0  # Offset for background
         self.previousoffsets: typing.List[int] = []
         self.current_background = test_space
+        self.offset_change: int = 0
 
     def draw(self) -> None:
         screen_height = screen.get_height()
@@ -208,8 +209,9 @@ class Game(object):
             self.previousoffsets.append(self.offset)
             if len(self.previousoffsets) > 2:
                 self.previousoffsets.pop(0)
-                
-            print(self.previousoffsets)
+                self.offset_change = self.previousoffsets[1] - self.previousoffsets[0]
+                print(self.offset_change)
+            
 
             # Update background
             screen.fill(BLACK)
@@ -251,7 +253,7 @@ class Game(object):
 
             for enemy in self.enemy_group.enemies:
                 for bullet in enemy.bullets:
-                    bullet.update()
+                    bullet.update(self.offset_change)
                     bullet.draw(self.surface)
 
             # Clamp player position

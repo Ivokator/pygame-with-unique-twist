@@ -39,8 +39,8 @@ class EnemyBullet(object):
     def draw(self, screen):
        pg.draw.circle(screen, RED, (self.x,self.y), self.radius)
     
-    def update(self) -> None:
-        self.x += self.velocity.x
+    def update(self, offset_change) -> None:
+        self.x += self.velocity.x + offset_change
         self.y += self.velocity.y
 
 
