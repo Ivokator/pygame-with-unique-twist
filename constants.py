@@ -12,6 +12,11 @@ RESOLUTION: tuple[int, int] = (1280, 960)
 
 PLAYER_SIZE: int = 30
 
+SCREEN_WIDTH: int = RESOLUTION[0]
+SCREEN_HEIGHT: int = RESOLUTION[1]
+
+WORLD_WIDTH: int= SCREEN_WIDTH * 5
+
 # -----------------------------------------------------------------
 
 # Basic colours
@@ -37,7 +42,7 @@ mytheme = pm.themes.Theme(title_bar_style=pm.widgets.MENUBAR_STYLE_UNDERLINE_TIT
                           fps = FRAMES_PER_SECOND,
                           widget_font = PRESS_START_FONT,
                           title_font = PRESS_START_FONT,
-                          widget_font_size = RESOLUTION[0] // 10,
+                          widget_font_size = RESOLUTION[0] // 30,
                           )
 
 
@@ -46,5 +51,6 @@ mytheme = pm.themes.Theme(title_bar_style=pm.widgets.MENUBAR_STYLE_UNDERLINE_TIT
 # ---------------------------- MISC CONSTANTS ----------------------------
 # do not change unless you know what you're doing!!
 
-
+TOP_WIDGET_HEIGHT = SCREEN_HEIGHT // 6
 TOP_WIDGET_LINE_THICKNESS: int = 20
+GAMEPLAY_HEIGHT = SCREEN_HEIGHT - TOP_WIDGET_HEIGHT

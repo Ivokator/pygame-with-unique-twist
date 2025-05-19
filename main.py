@@ -16,7 +16,8 @@ from pygame_widgets.button import ButtonArray # type: ignore
 
 import map
 
-from classes import PlayerBullet, EnemyBullet, Enemy, EnemyGroup
+from classes import Player, PlayerBullet, EnemyBullet, Enemy, EnemyGroup, MiniMap
+
 from constants import *
 
 # Initialize
@@ -27,11 +28,6 @@ pg.init()
 screen: pg.Surface = pg.display.set_mode(RESOLUTION, pg.RESIZABLE | pg.SCALED, vsync=1)
 clock: pg.time.Clock = pg.time.Clock()
 
-SCREEN_WIDTH: int
-SCREEN_HEIGHT: int
-
-SCREEN_WIDTH, SCREEN_HEIGHT = screen.get_size()
-
 # Images
 test_space = pg.image.load(os.path.join("./images/background","test_space.png")).convert()
 
@@ -39,156 +35,30 @@ test_space = pg.image.load(os.path.join("./images/background","test_space.png"))
 test_space_tiles = math.ceil(SCREEN_WIDTH / (test_space.get_width())) + 1
 
 # Camera look-ahead constants
-MAX_LOOKAHEAD: float = SCREEN_WIDTH * 0.6 # pixels ahead of player
-SMOOTHING: float = 0.04 # 0–1 (higher = snappier)
-EDGE_MARGIN = SCREEN_WIDTH * 0.4 # pixels from left/right edge
+MAX_LOOKAHEAD: float = SCREEN_WIDTH * 0.5 # pixels ahead of player
+SMOOTHING: float = 0.03 # 0–1 (higher = snappier)
+EDGE_MARGIN = SCREEN_WIDTH * 0.3 # pixels from left/right edge
 
 def quit() -> None:
     """Terminates game."""
     pg.quit()
     sys.exit()
 
-class Player(object):
-    """Player character class.
-
-    Attributes:
-        rect (pg.Rect): The rectangle representing the player's position and size.
-        pos (pg.Vector2): The player's position as a 2D vector.
-
-        velocity (pg.Vector2): The player's velocity as a 2D vector.
-
-        accel_x (float): The player's acceleration in the x direction.
-        accel_y (float): The player's acceleration in the y direction.
-
-        max_speed_x (int): The maximum speed of the player in the x direction.
-        max_speed_y (int): The maximum speed of the player in the y direction.
-        accel_rate (int): The rate of acceleration for the player.
-        drag (int): The drag applied to the player's movement.
-            - low values give icy movement, high values give sharp and responsive movement 
-
-        direction (int): The direction the player is facing (0 for left, 1 for right).
-            - yes i know this is crap
-        
-        bullets (typing.List[PlayerBullet]): List of bullets fired by the player.
-        bullet_cooldown_ms (float): Cooldown time in milliseconds between firing bullets.
-        cooldown_timer (int): Timer to track bullet cooldown.
-    """
-    def __init__(self, x: int, y: int, width: int, height: int) -> None:
-        self.rect: pg.Rect = pg.Rect(x, y, width, height)
-        self.pos: Vector2 = Vector2(x, y)
-
-        # Physics parameters
-        self.velocity: Vector2 = Vector2(0, 0)
-        self.accel_x: float = 0.0
-        self.accel_y: float = 0.0
-        self.max_speed_x: int = 10
-        self.max_speed_y: int = 8
-        self.accel_rate: int = 30
-
-        # careful that drag does not exceed accel_rate
-        self.drag_x: int = 3 
-        self.drag_y: int = 20
-
-        self.direction = 0  # left:0, right:1
-
-        self.bullets: typing.List[PlayerBullet] = []
-        self.bullet_cooldown_ms: float = 100
-        self.cooldown_timer: int = 0
-
-    def move(self, dt) -> None:
-        keys = pg.key.get_pressed()
-
-        # HORIZONTAL ACCELERATION 
-        if keys[pg.K_a]:
-            self.accel_x = -self.accel_rate
-            self.direction = 1
-        elif keys[pg.K_d]:
-            self.accel_x = self.accel_rate
-            self.direction = 0
-        else:
-            # no input -> apply drag opposite to current velocity
-            if self.velocity.x > 0:
-                self.accel_x = -self.drag_x
-            elif self.velocity.x < 0:
-                self.accel_x = self.drag_x
-            else:
-                self.accel_x = 0
-
-        # integrate horizontal velocity
-        self.velocity.x += self.accel_x * dt
-        
-        # if input has flipped drag past zero, zero it out
-        if abs(self.velocity.x) < (self.drag_x * dt):
-            self.velocity.x = 0
-
-        # clamp to max x-axis speed
-        self.velocity.x = max(-self.max_speed_x, min(self.velocity.x, self.max_speed_x))
-
-        # VERTICAL ACCELERATION
-        if keys[pg.K_w]:
-            self.accel_y = -self.accel_rate
-        elif keys[pg.K_s]:
-            self.accel_y = self.accel_rate
-        else:
-            if self.velocity.y > 0:
-                self.accel_y = -self.drag_y
-            elif self.velocity.y < 0:
-                self.accel_y = self.drag_y
-            else:
-                self.accel_y = 0
-
-        self.velocity.y += self.accel_y * dt
-
-        if abs(self.velocity.y) < (self.drag_y * dt):
-            self.velocity.y = 0
-
-        # clamp to max y-axis speed
-        self.velocity.y = max(-self.max_speed_y, min(self.velocity.y, self.max_speed_y))
-
-        self.pos += self.velocity
-
-        # assigns Vector2 to Tuple[int, int], but works
-        self.rect.center = self.pos # type: ignore
-
-    def fire_bullet(self) -> None:
-        """Fires a bullet."""
-        # Create a bullet at the player's position
-        # and set its angle and speed
-        if self.cooldown_timer > self.bullet_cooldown_ms:
-            self.cooldown_timer = 0
-            bullet = PlayerBullet(self.rect.x, self.rect.y + (self.rect.height // 2), width=10, height=10, angle = self.direction * -180, speed=30)
-            self.bullets.append(bullet)
-    
-    def switch_direction(self) -> None:
-        """Switches the direction of the player."""
-        if self.direction == 0:
-            self.direction = 1
-        else:
-            self.direction = 0
-    
-    def update(self, offset_x) -> None:
-        """Update the player's position based on the offset."""
-        self.rect.x = self.pos.x + offset_x
-
-    def draw(self) -> None:
-        """Draws the player."""
-        pg.draw.rect(game.surface, WHITE, self.rect)
-
 class Game(object):
 
     def __init__(self) -> None:
         self.dt: float = 0.0
         self.running: bool = True
-        self.top_widget: pg.Surface = pg.Surface((SCREEN_WIDTH, SCREEN_HEIGHT // 6))
-        self.surface: pg.Surface = pg.Surface((SCREEN_WIDTH, SCREEN_HEIGHT - self.top_widget.get_height()))
+        self.top_widget: pg.Surface = pg.Surface((SCREEN_WIDTH, TOP_WIDGET_HEIGHT))
+        self.surface: pg.Surface = pg.Surface((SCREEN_WIDTH, SCREEN_HEIGHT - TOP_WIDGET_HEIGHT))
 
         self.offset: Vector2 = Vector2(0, 0)
         self.focus_offset: Vector2 = Vector2(0, 0)
         self.current_background = test_space
 
         self.text_score = PRESS_START_FONT.render("000000", True, WHITE)
-        self.mini_map: pg.Surface = pg.Surface((SCREEN_WIDTH // 3, self.top_widget.get_height() - TOP_WIDGET_LINE_THICKNESS // 2))
-
+        self.mini_map: MiniMap = MiniMap()
+        self.mini_map_clock: float = 0.0
 
         self.camera = Vector2(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
         self.current_lookahead = 0.0
@@ -197,7 +67,7 @@ class Game(object):
         screen_height = screen.get_height()
         screen_width = (screen_height * (SCREEN_WIDTH / SCREEN_HEIGHT))
 
-        screen_surface = pg.Surface((screen_width, screen_height - self.top_widget.get_height()))
+        screen_surface = pg.Surface((screen_width, screen_height - TOP_WIDGET_HEIGHT))
 
         # Calculate the offset for the camera
         heading = self.player.pos - self.camera
@@ -212,7 +82,7 @@ class Game(object):
 
         pg.transform.scale(
             self.surface,
-            (screen_width, screen_height - self.top_widget.get_height()),
+            (screen_width, screen_height - TOP_WIDGET_HEIGHT),
             screen_surface)
 
         self.player.update(int(self.offset.x))
@@ -221,9 +91,10 @@ class Game(object):
         # Blit and center surface on the screen
         screen.blit(
             screen_surface,
-            ((screen.get_width() - self.surface.get_width()) / 4, self.top_widget.get_height()))
+            ((screen.get_width() - self.surface.get_width()) / 4, TOP_WIDGET_HEIGHT))
+             
+        self.render_top_widget()
 
-        self.render_top_widget()  
         pg.display.flip()
 
     def camera_look_ahead(self) -> None:
@@ -233,7 +104,7 @@ class Game(object):
         """
         desired: float = 0.0
 
-        # If player is moving, set desired look-ahead
+        # if player is moving, set desired look-ahead
         if abs(self.player.velocity.x) > self.speed_threshold:
             desired = math.copysign(MAX_LOOKAHEAD, self.player.velocity.x)
 
@@ -242,45 +113,43 @@ class Game(object):
         # compute player’s x in screen space
         player_screen_x: float = self.player.pos.x + self.offset.x
 
+        # detect how much the player is over the edge margins
         violation: float = 0.0
-        print(self.player.velocity.x)
         if player_screen_x < EDGE_MARGIN:
             violation = EDGE_MARGIN - player_screen_x
         elif player_screen_x > SCREEN_WIDTH - EDGE_MARGIN:
             violation = (SCREEN_WIDTH - EDGE_MARGIN) - player_screen_x
 
-        # Compute a desired camera X that would correct the violation
+        # correct the violation with a desired value
         desired_cam_x: float = self.camera.x - violation
 
-        # Smoothly interpolate camera.x toward that desired value
+        # smoothly interpolate camera.x toward that desired value
         self.camera.x += (desired_cam_x - self.camera.x) * SMOOTHING
 
-        # Build target camera x with smoothed look-ahead
+        # build target camera x with smoothed look-ahead
         target_cam_x: float = self.camera.x + self.current_lookahead
-        
+
         # formula: a = a + (b - a) * t, where a is the current value, b is the desired value, and t is the smoothing factor
+        self.player.lookahead_compensation = (target_cam_x - self.camera.x) * SMOOTHING
         self.camera.x += (target_cam_x - self.camera.x) * SMOOTHING
 
 
     def render_top_widget(self) -> None:
         # Draw the top widget
-        self.top_widget.fill(DARK_GREY)
-        self.mini_map.fill(BLACK)
+        self.top_widget.fill(DARKER_GREY)
 
         pg.draw.line(self.top_widget, WHITE, 
-            (0, self.top_widget.get_height()), 
-            (self.top_widget.get_width(), self.top_widget.get_height()), TOP_WIDGET_LINE_THICKNESS)
-
+            (0, TOP_WIDGET_HEIGHT), 
+            (self.top_widget.get_width(), TOP_WIDGET_HEIGHT), TOP_WIDGET_LINE_THICKNESS)
 
         screen.blit(self.top_widget, (0, 0))
-        
-        screen.blit(self.text_score, (100, self.top_widget.get_height() - self.text_score.get_height() - 10))
+        screen.blit(self.text_score, (100, TOP_WIDGET_HEIGHT - self.text_score.get_height() - 10))
 
-        # Draw elements on mini map
-        for enemy in self.enemy_group.enemies:
-            # Get position of actual enemy, and scale it down to the mini map
-            ...
-        screen.blit(self.mini_map, ((self.surface.get_width() // 2) - (self.mini_map.get_width() // 2), 0))
+        
+        self.mini_map.add(*self.enemy_group.sprites())
+        self.mini_map.update(self.offset.x)
+        
+        screen.blit(self.mini_map.surface, ((self.surface.get_width() // 2) - (self.mini_map.surface.get_width() // 2), 0))
 
         
 
@@ -303,20 +172,20 @@ class Game(object):
             self.surface.blit(scaled_background, 
             (self.offset.x % background_width + i * background_width, 0))
 
-
-
     def play_game(self) -> None:
 
         # Game preparation
         pg.display.set_caption(WINDOW_TITLE)
-        self.enemy_group = EnemyGroup()
+        self.enemy_group: EnemyGroup = EnemyGroup()
 
         # Intialize player
-        self.player = Player(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4, PLAYER_SIZE, PLAYER_SIZE)
-        self.speed_threshold = self.player.max_speed_x * 0.7 # threshold for look-ahead
+        self.player: Player = Player(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4, PLAYER_SIZE, PLAYER_SIZE)
+        self.speed_threshold: float = self.player.max_speed_x * 0.7 # threshold for look-ahead
+        self.mini_map.add(self.player)
 
-        self.peaks = map.generate_peaks(SCREEN_WIDTH * 5)
-        time_since_last_enemy = 0.0
+        self.peaks: list[tuple[int, int]] = map.generate_peaks(WORLD_WIDTH)
+        self.mini_map.create_mountain_representation(self.peaks, WORLD_WIDTH)
+        time_since_last_enemy: float = 0.0
 
         self.running = True
         while self.running:
@@ -326,7 +195,7 @@ class Game(object):
             self.background()
 
             # Draw mountains
-            map.draw_mountains(self.surface, self.peaks, int(self.offset.x), SCREEN_WIDTH * 5)
+            map.draw_mountains(self.surface, self.peaks, int(self.offset.x), WORLD_WIDTH)
         
             # Event handling
             self.player.cooldown_timer += clock.get_time()
@@ -344,25 +213,24 @@ class Game(object):
                 bullet.draw(self.surface)
 
             # Draw/update player
-            self.player.draw()
+            self.player.draw(self.surface)
             self.player.move(self.dt)
 
             time_since_last_enemy += self.dt
 
-            if time_since_last_enemy >= 1:
+            if time_since_last_enemy >= 0.7:
                 # Spawn enemy
-                enemy = Enemy(random.randint(0, SCREEN_WIDTH), random.randint(0, self.surface.get_height()))
-
+                enemy = Enemy(random.randint(-SCREEN_WIDTH, SCREEN_WIDTH*2), random.randint(0, self.surface.get_height()))
                 # Spawn no more than 5 enemies at once
-                if len(self.enemy_group.enemies) < 5:
-                    self.enemy_group.add_enemy(enemy)
+                if len(self.enemy_group.sprites()) < 5:
+                    self.enemy_group.add(enemy)
                 else:
                     # Remove the oldest enemy
-                    self.enemy_group.enemies.pop(0)
-                    self.enemy_group.remove(self.enemy_group.enemies[0])
+                    old: pg.sprite.Sprite = self.enemy_group.sprites()[0]
+                    old.kill()
+                    del old
 
                 time_since_last_enemy = 0
-            
 
             self.player.rect.clamp_ip(self.surface.get_rect())
             
@@ -384,6 +252,7 @@ class Game(object):
                 # Fire bullet
                 elif event.key == pg.K_n:
                     self.player.fire_bullet()
+                    print(self.player.pos.x)
 
 
     def main_menu(self) -> None:

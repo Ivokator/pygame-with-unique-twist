@@ -5,9 +5,6 @@ import sys
 from constants import *
 
 # LANDSCAPE CONSTANTS
-SCREEN_WIDTH: int = RESOLUTION[0]
-SCREEN_HEIGHT: int = RESOLUTION[1]
-#
 NUM_SEGMENTS: int = 500
 MIN_HEIGHT: int = SCREEN_HEIGHT // 4
 MAX_HEIGHT: int = SCREEN_HEIGHT // 2
