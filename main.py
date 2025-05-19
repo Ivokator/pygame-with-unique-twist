@@ -12,7 +12,7 @@ import pygame_menu as pm
 
 from pygame import Rect
 from pygame.math import Vector2
-from pygame_widgets.button import ButtonArray # type: ignore
+#from pygame_widgets.button import ButtonArray # type: ignore
 
 import map
 
@@ -44,8 +44,8 @@ def quit() -> None:
     pg.quit()
     sys.exit()
 
-class Game(object):
 
+class Game(object):
     def __init__(self) -> None:
         self.dt: float = 0.0
         self.running: bool = True
@@ -53,8 +53,12 @@ class Game(object):
         self.surface: pg.Surface = pg.Surface((SCREEN_WIDTH, SCREEN_HEIGHT - TOP_WIDGET_HEIGHT))
 
         self.offset: Vector2 = Vector2(0, 0)
-        self.focus_offset: Vector2 = Vector2(0, 0)
+            
+        self.background_scroll: float | int = 0  # Background scroll counter
+        self.previousoffsets: typing.List[int] = []
+            
         self.current_background = test_space
+        self.offset_change: int = 0
 
         self.text_score = PRESS_START_FONT.render("000000", True, WHITE)
         self.mini_map: MiniMap = MiniMap()
@@ -170,7 +174,6 @@ class Game(object):
             (self.offset.x % background_width + i * background_width, 0))
 
     def play_game(self) -> None:
-
         # Game preparation
         pg.display.set_caption(WINDOW_TITLE)
         self.enemy_group: EnemyGroup = EnemyGroup()
@@ -186,6 +189,14 @@ class Game(object):
 
         self.running = True
         while self.running:
+            # Calculate change in offset (d_offset)
+            self.previousoffsets.append(self.offset)
+            if len(self.previousoffsets) > 2:
+                self.previousoffsets.pop(0)
+                self.offset_change = self.previousoffsets[1] - self.previousoffsets[0]
+                print(self.offset_change)
+            
+
             # Update background
             screen.fill(BLACK)
             self.surface.fill(BLACK)
@@ -213,6 +224,7 @@ class Game(object):
             self.player.draw(self.surface)
             self.player.move(self.dt)
 
+            # Spawn enemies
             time_since_last_enemy += self.dt
 
             if time_since_last_enemy >= 0.7:
@@ -229,10 +241,27 @@ class Game(object):
 
                 time_since_last_enemy = 0
 
+            # Draw enemies
+            for enemy in self.enemy_group.enemies:
+                enemy.update(self.offset)
+                enemy.draw(self.surface)
+                enemy.fire_bullet(self.player.rect.x, self.player.rect.y)
+
+            for enemy in self.enemy_group.enemies:
+                for bullet in enemy.bullets:
+                    bullet.update(self.offset_change)
+                    bullet.draw(self.surface)
+
+            # Clamp player position
             self.player.rect.clamp_ip(self.surface.get_rect())
-            
+
             # Draw screen
             self.draw()
+
+            # Update previous offset (move this to the end of the loop)
+            self.previous_offset = self.offset
+
+            # Update delta time
             self.dt = clock.tick(FRAMES_PER_SECOND) / 1000
 
         quit()

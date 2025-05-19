@@ -1,7 +1,10 @@
+import math
+import random
 import typing
 
 import pygame as pg
 from pygame.math import Vector2
+
 from constants import *
 
 class Player(pg.sprite.Sprite):
@@ -176,9 +179,10 @@ class EnemyBullet(object):
     def draw(self, screen):
        pg.draw.circle(screen, RED, (self.x,self.y), self.radius)
     
-    def update(self):
-        self.x += self.velocity.x
+    def update(self, offset_change) -> None:
+        self.x += self.velocity.x + offset_change
         self.y += self.velocity.y
+
 
 class Enemy(pg.sprite.Sprite):
     def __init__(self, spawn_x: int, spawn_y: int) -> None:
@@ -189,14 +193,26 @@ class Enemy(pg.sprite.Sprite):
         self.width = 30
         self.height = 30
         self.speed = 5
-
-        print(f"Enemy created at ({self.pos.x}, {self.pos.y})")
+        
+        self.offset_x = 0
+        
+        self.bullets: typing.List[EnemyBullet] = []
+        #print(f"Enemy created at ({self.x}, {self.y})")
         
     def draw(self, screen) -> None:
         pg.draw.rect(screen, GREEN, pg.Rect(self.draw_x, self.pos.y, self.width, self.height))
 
     def update(self, offset_x: int) -> None:
         self.draw_x = self.pos.x + offset_x
+    
+    def fire_bullet(self, player_x: int, player_y: int) -> None:
+        self.dx = player_x - self.x
+        self.dy = player_y - self.y
+        angle = math.degrees(math.atan2(self.dy, self.dx)) + random.randint(-2, 2) # randomize angle
+        i = random.randint(0, 1000)
+        if i < 5:
+            bullet = EnemyBullet(self.x, self.y, radius=5, speed=2, angle=angle)
+            self.bullets.append(bullet)
 
 class EnemyGroup(pg.sprite.Group):
     def __init__(self) -> None:
