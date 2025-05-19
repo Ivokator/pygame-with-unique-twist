@@ -176,11 +176,12 @@ class EnemyBullet(object):
         self.velocity = pg.math.Vector2()
         self.velocity.from_polar((self.speed, self.angle)) # polar coordinates
 
-    def draw(self, screen):
-       pg.draw.circle(screen, RED, (self.x,self.y), self.radius)
+    def draw(self, screen: pg.Surface, offset_x: float):
+       screen_x = self.x + offset_x
+       pg.draw.circle(screen, RED, (screen_x, self.y), self.radius)
     
-    def update(self, offset_change) -> None:
-        self.x += self.velocity.x + offset_change
+    def update(self) -> None:
+        self.x += self.velocity.x
         self.y += self.velocity.y
 
 
@@ -205,14 +206,16 @@ class Enemy(pg.sprite.Sprite):
     def update(self, offset_x: float) -> None:
         self.draw_x = self.pos.x + offset_x
     
-    def fire_bullet(self, player_x: int, player_y: int) -> None:
-        self.dx = player_x - self.pos.x
-        self.dy = player_y - self.pos.x
-        angle = math.degrees(math.atan2(self.dy, self.dx)) + random.randint(-2, 2) # randomize angle
-        i = random.randint(0, 1000)
-        if i < 5:
-            bullet = EnemyBullet(self.pos.x, self.pos.y, radius=5, speed=2, angle=angle)
-            self.bullets.append(bullet)
+    def fire_bullet(self, player_x: float, player_y: float) -> None:
+        dx = player_x - self.pos.x
+        dy = player_y - self.pos.y
+        angle = math.degrees(math.atan2(dy, dx)) + random.randint(-2, 2) # randomize angle
+
+        # spawn at the enemy’s center
+        spawn_x = self.pos.x + self.width / 2
+        spawn_y = self.pos.y + self.height / 2
+        bullet = EnemyBullet(spawn_x, spawn_y, radius=5, speed=6, angle=angle)
+        self.bullets.append(bullet)
 
 class EnemyGroup(pg.sprite.Group):
     def __init__(self) -> None:
@@ -306,9 +309,6 @@ if __name__ == "__main__":
     screen = pg.display.set_mode(RESOLUTION)
     clock = pg.time.Clock()
 
-    player_bullet = PlayerBullet(100, 100, 10, 5, speed=5, angle=0, )
-    enemy_bullet = EnemyBullet(200, 200, radius=5, speed=5, angle=45, )
-
     running: bool = True
     dt = 0.0
     while running:
@@ -318,11 +318,6 @@ if __name__ == "__main__":
                 running = False
 
         screen.fill(BLACK)
-
-        player_bullet.update()
-
-        enemy_bullet.draw(screen)
-        player_bullet.draw(screen)
 
         pg.display.flip()
         dt = clock.tick(FRAMES_PER_SECOND) / 1000

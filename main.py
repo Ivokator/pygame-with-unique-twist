@@ -186,17 +186,17 @@ class Game(object):
         self.peaks: list[tuple[int, int]] = map.generate_peaks(WORLD_WIDTH)
         self.mini_map.create_mountain_representation(self.peaks, WORLD_WIDTH)
         time_since_last_enemy: float = 0.0
+        test_spam_enemy_fire_time: float = 0.0
 
         self.running = True
         while self.running:
             # Calculate change in offset (d_offset)
+
             self.previousoffsets.append(self.offset.x)
             if len(self.previousoffsets) > 2:
                 self.previousoffsets.pop(0)
                 self.offset_change = self.previousoffsets[1] - self.previousoffsets[0]
-                print(self.offset_change)
-            
-
+        
             # Update background
             screen.fill(BLACK)
             self.surface.fill(BLACK)
@@ -209,10 +209,10 @@ class Game(object):
             self.player.cooldown_timer += clock.get_time()
             self.event()
 
-            # Draw bullets
+            # Draw player bullets
             for bullet in self.player.bullets:
-                # Delete bullet if it goes off screen
-                if bullet.x + SCREEN_WIDTH // 2 < 0 or bullet.x > SCREEN_WIDTH*4:
+                # off-screen culling
+                if bullet.x < SCREEN_WIDTH * -2 or bullet.x > SCREEN_WIDTH * 2:
                     self.player.bullets.remove(bullet)
                     del bullet
                     continue
@@ -230,6 +230,7 @@ class Game(object):
             if time_since_last_enemy >= 2:
                 # Spawn enemy
                 enemy = Enemy(random.randint(-SCREEN_WIDTH, SCREEN_WIDTH*2), random.randint(0, self.surface.get_height()))
+
                 # Spawn no more than 5 enemies at once
                 if len(self.enemy_group.sprites()) < 5:
                     self.enemy_group.add(enemy)
@@ -244,12 +245,27 @@ class Game(object):
             # Draw enemies
             for enemy in self.enemy_group.sprites():
                 enemy.update(self.offset.x)
-                enemy.draw(self.surface)
-                enemy.fire_bullet(self.player.rect.x, self.player.rect.y)
-                for ebullet in enemy.bullets:
-                    ebullet.update(self.offset_change)
-                    ebullet.draw(self.surface)
 
+                # off-screen culling
+                if enemy.pos.x < SCREEN_WIDTH * 1.2 and enemy.pos.x > 0 - SCREEN_WIDTH * 0.2:
+                    enemy.draw(self.surface)
+
+                for ebullet in enemy.bullets:
+                    # off-screen culling
+                    if ebullet.x + self.offset.x < SCREEN_WIDTH * -0.2 or ebullet.x + self.offset.x > SCREEN_WIDTH * 1.2 or ebullet.y > SCREEN_HEIGHT or ebullet.y < 0:
+                        enemy.bullets.remove(ebullet)
+                        del ebullet
+                        continue
+        
+                    ebullet.update()
+                    ebullet.draw(self.surface, self.offset.x)
+                    
+            test_spam_enemy_fire_time += self.dt
+            if test_spam_enemy_fire_time > 1.3:
+                for enemy in self.enemy_group.sprites():
+                    enemy.fire_bullet(self.player.pos.x, self.player.pos.y)
+                    test_spam_enemy_fire_time = 0.0
+            
             # Clamp player position
             self.player.rect.clamp_ip(self.surface.get_rect())
 
@@ -277,15 +293,6 @@ class Game(object):
                 elif event.key == pg.K_n:
                     self.player.fire_bullet()
                     print(self.player.pos.x)
-
-                elif event.key == pg.K_f: # TEST FIRE
-                    for enemy in self.enemy_group.sprites():
-                        enemy.update(self.offset.x)
-                        enemy.draw(self.surface)
-                        enemy.fire_bullet(self.player.rect.x, self.player.rect.y)
-                        for ebullet in enemy.bullets:
-                            ebullet.update(self.offset_change)
-                            ebullet.draw(self.surface)
 
 
     def main_menu(self) -> None:
