@@ -166,7 +166,7 @@ class PlayerBullet(object):
 
 
 class EnemyBullet(object):
-    def __init__(self, x: int, y: int, speed: int, angle, radius) -> None:
+    def __init__(self, x: float | int, y: float | int, speed: int, angle, radius) -> None:
         self.x = x
         self.y = y
         self.radius = radius
@@ -202,16 +202,16 @@ class Enemy(pg.sprite.Sprite):
     def draw(self, screen) -> None:
         pg.draw.rect(screen, GREEN, pg.Rect(self.draw_x, self.pos.y, self.width, self.height))
 
-    def update(self, offset_x: int) -> None:
+    def update(self, offset_x: float) -> None:
         self.draw_x = self.pos.x + offset_x
     
     def fire_bullet(self, player_x: int, player_y: int) -> None:
-        self.dx = player_x - self.x
-        self.dy = player_y - self.y
+        self.dx = player_x - self.pos.x
+        self.dy = player_y - self.pos.x
         angle = math.degrees(math.atan2(self.dy, self.dx)) + random.randint(-2, 2) # randomize angle
         i = random.randint(0, 1000)
         if i < 5:
-            bullet = EnemyBullet(self.x, self.y, radius=5, speed=2, angle=angle)
+            bullet = EnemyBullet(self.pos.x, self.pos.y, radius=5, speed=2, angle=angle)
             self.bullets.append(bullet)
 
 class EnemyGroup(pg.sprite.Group):
@@ -320,7 +320,6 @@ if __name__ == "__main__":
         screen.fill(BLACK)
 
         player_bullet.update()
-        enemy_bullet.update()
 
         enemy_bullet.draw(screen)
         player_bullet.draw(screen)

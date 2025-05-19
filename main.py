@@ -55,10 +55,10 @@ class Game(object):
         self.offset: Vector2 = Vector2(0, 0)
             
         self.background_scroll: float | int = 0  # Background scroll counter
-        self.previousoffsets: typing.List[int] = []
+        self.previousoffsets: typing.List[float] = []
             
         self.current_background = test_space
-        self.offset_change: int = 0
+        self.offset_change: float = 0.0
 
         self.text_score = PRESS_START_FONT.render("000000", True, WHITE)
         self.mini_map: MiniMap = MiniMap()
@@ -190,7 +190,7 @@ class Game(object):
         self.running = True
         while self.running:
             # Calculate change in offset (d_offset)
-            self.previousoffsets.append(self.offset)
+            self.previousoffsets.append(self.offset.x)
             if len(self.previousoffsets) > 2:
                 self.previousoffsets.pop(0)
                 self.offset_change = self.previousoffsets[1] - self.previousoffsets[0]
@@ -227,7 +227,7 @@ class Game(object):
             # Spawn enemies
             time_since_last_enemy += self.dt
 
-            if time_since_last_enemy >= 0.7:
+            if time_since_last_enemy >= 2:
                 # Spawn enemy
                 enemy = Enemy(random.randint(-SCREEN_WIDTH, SCREEN_WIDTH*2), random.randint(0, self.surface.get_height()))
                 # Spawn no more than 5 enemies at once
@@ -242,15 +242,13 @@ class Game(object):
                 time_since_last_enemy = 0
 
             # Draw enemies
-            for enemy in self.enemy_group.enemies:
-                enemy.update(self.offset)
+            for enemy in self.enemy_group.sprites():
+                enemy.update(self.offset.x)
                 enemy.draw(self.surface)
                 enemy.fire_bullet(self.player.rect.x, self.player.rect.y)
-
-            for enemy in self.enemy_group.enemies:
-                for bullet in enemy.bullets:
-                    bullet.update(self.offset_change)
-                    bullet.draw(self.surface)
+                for ebullet in enemy.bullets:
+                    ebullet.update(self.offset_change)
+                    ebullet.draw(self.surface)
 
             # Clamp player position
             self.player.rect.clamp_ip(self.surface.get_rect())
@@ -279,6 +277,15 @@ class Game(object):
                 elif event.key == pg.K_n:
                     self.player.fire_bullet()
                     print(self.player.pos.x)
+
+                elif event.key == pg.K_f: # TEST FIRE
+                    for enemy in self.enemy_group.sprites():
+                        enemy.update(self.offset.x)
+                        enemy.draw(self.surface)
+                        enemy.fire_bullet(self.player.rect.x, self.player.rect.y)
+                        for ebullet in enemy.bullets:
+                            ebullet.update(self.offset_change)
+                            ebullet.draw(self.surface)
 
 
     def main_menu(self) -> None:
