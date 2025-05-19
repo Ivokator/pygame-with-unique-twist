@@ -251,7 +251,7 @@ class MiniMap(pg.sprite.Group):
 
             # clamp inside minimap
             #icon_x = max(0, min(self.surface_width  - self.icon_size, icon_x))
-            #icon_y = max(0, min(self.surface_height - self.icon_size, icon_y))
+            icon_y = max(0, min(self.surface_height - self.icon_size, icon_y))
 
 
             if isinstance(sprite, Player):

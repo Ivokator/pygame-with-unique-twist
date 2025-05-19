@@ -133,7 +133,6 @@ class Game(object):
         self.player.lookahead_compensation = (target_cam_x - self.camera.x) * SMOOTHING
         self.camera.x += (target_cam_x - self.camera.x) * SMOOTHING
 
-
     def render_top_widget(self) -> None:
         # Draw the top widget
         self.top_widget.fill(DARKER_GREY)
@@ -150,8 +149,6 @@ class Game(object):
         self.mini_map.update(self.offset.x)
         
         screen.blit(self.mini_map.surface, ((self.surface.get_width() // 2) - (self.mini_map.surface.get_width() // 2), 0))
-
-        
 
     def background(self) -> None:
         # Draw the background
