@@ -1,128 +1,109 @@
+import pygame
 import random
-import math
+import sys
 
-import pygame as pg
-import pygame.gfxdraw as gfxdraw
+from constants import *
 
-def smooth_step(weight):
-    """Smoothstep interpolation function."""
-    return weight * weight * (3 - 2 * weight)
+# LANDSCAPE CONSTANTS
+NUM_SEGMENTS: int = 500
+MIN_HEIGHT: int = SCREEN_HEIGHT // 4
+MAX_HEIGHT: int = SCREEN_HEIGHT // 2
+#
+MOUNTAIN_COLOR: tuple[int, int, int] = (96, 135, 106)
+OUTLINE_COLOR: tuple[int, int, int] = (137, 196, 152)
+LINE_WIDTH: int = 3
 
 
-def linear_interpolation(point_a, point_b, weight):
-    """Linear interpolation between point_a and point_b by weight."""
-    return point_a + weight * (point_b - point_a)
-
-
-def perlin_noise_1d(width, amp=1.0, freq=1.0, octaves=1):
+def generate_peaks(world_width: int) -> list[tuple[int, int]]:
     """
-    Generate a 1D Perlin noise list of length `width`.
+    Returns a list of (x, y) points spanning 0 to world_width,
+    with each segment flat or 45° slope.
 
-    Parameters:
-    - width (int): Number of samples in the output noise list.
-    - amp (float): Base amplitude for the first octave.
-    - freq (float): Base frequency for the first octave.
-    - octaves (int): Number of octaves to sum.
+    Arguments:
+        world_width (int): The width of the world to generate peaks for.
 
     Returns:
-    - List[float]: Noise values in the range roughly [-amp, +amp], summed over octaves.
+        peaks (list[tuple[int, int]]): A list of (x, y) points representing the mountain peaks.
     """
-    # Initialize output noise array
-    output = [0.0 for _ in range(width)]
+    segment_w: int = world_width // NUM_SEGMENTS
+    base_y: int = SCREEN_HEIGHT - random.randint(MIN_HEIGHT, MAX_HEIGHT)
+    peaks: list[tuple[int, int]] = [(0, base_y)]
 
-    # For each octave, add finer details
-    for octave in range(octaves):
-        frequency = freq * (2 ** octave)
-        amplitude = amp * (0.5 ** octave)
-        gradients = {}
+    for i in range(1, NUM_SEGMENTS + 1):
+        slope: int = random.choice([-1, 0, 1])
+        dy: int = slope * segment_w # delta y
 
-        for i in range(width):
-            # Map sample index to x coordinate in noise space
-            x = (i * frequency) / width
-            x0 = math.floor(x)
-            x1 = x0 + 1
-            dx0 = x - x0
-            dx1 = x - x1
+        # calculate new y position based on previous peak
+        y_prev: int = peaks[-1][1]
+        y_new: int = y_prev + dy
 
-            # Assign or retrieve random gradient at integer grid points
-            if x0 not in gradients:
-                gradients[x0] = random.uniform(0, 1.0)
-            if x1 not in gradients:
-                gradients[x1] = random.uniform(0, 1.0)
+        # clamp within vertical bounds
+        y_min: int = SCREEN_HEIGHT - MAX_HEIGHT
+        y_max: int = SCREEN_HEIGHT - MIN_HEIGHT
 
-            g0 = gradients[x0]
-            g1 = gradients[x1]
+        y_new = max(y_min, min(y_max, y_new))
+        peaks.append((i * segment_w, y_new))
 
-            # Compute influence (dot product) of gradients
-            dot0 = g0 * dx0
-            dot1 = g1 * dx1
-
-            # Interpolate between contributions
-            weight = smooth_step(dx0)
-            sample = linear_interpolation(dot0, dot1, weight)
-
-            # Accumulate into the output array
-            output[i] += sample * amplitude
-
-    return output
-
-def get_mountain_params():
-    """Get the parameters for the mountains."""
-    width = 10000
-    amp = 1
-    freq = 10
-    octaves = 15
-
-    return width, amp, freq, octaves
+    return peaks
 
 
-def generate_mountains() -> list[float]:
-
-    width, amp, freq, octaves = get_mountain_params()
+def draw_mountains(surface: pygame.Surface, peaks: list[tuple[int, int]], offset_x: int, world_width: int = SCREEN_WIDTH * 3) -> None:
+    """
+    Draw the mountain silhouette shifted by camera offset.
     
-    noise_data: list[float] = perlin_noise_1d(width, amp, freq, octaves)
-    return noise_data
+    Arguments:
+        surface (pygame.Surface): The surface to draw on.
+        peaks (list[tuple[int, int]]): A list of (x, y) points representing the mountain peaks.
+        offset_x (int): The camera x-axis offset to shift the peaks by.
+        world_width (int): The width of the world to draw mountains for.
 
-def draw_mountains(surface: pg.surface.Surface, noise_data: list[float], screen_height: int, offset: float | int) -> None:
+    """
 
-    width, amp, freq, octaves = get_mountain_params()
+    # shift peaks by offset
+    shifted = [(x + offset_x - (world_width // 2), y) for x, y in peaks]
 
-    # Ensure no negative points
-    noise_data = [max(0, value) for value in noise_data]
-    points = [(i + offset, (screen_height - noise_data[i] / amp * screen_height) - screen_height // 8) for i in range(len(noise_data))]
+    # build polygon from left of view to right
+    poly = [(shifted[0][0], SCREEN_HEIGHT), *shifted, (shifted[-1][0], SCREEN_HEIGHT)]
 
-    gfxdraw.filled_polygon(surface, points, (0, 255, 255))
+    # filled mountain
+    pygame.draw.polygon(surface, MOUNTAIN_COLOR, poly)
 
-    for i in range(1, len(noise_data)):
-            pg.draw.line(
-            surface=surface,
-            color=(255, 255, 255),
-            start_pos=(i - 1 + offset, screen_height - noise_data[i - 1] / amp * screen_height - (screen_height // 8)),
-            end_pos=(i + offset, screen_height - noise_data[i] / amp * screen_height - (screen_height // 8)),
-            width=3
-            )
-    
-    
+    # outline
+    for a, b in zip(shifted, shifted[1:]):
+        pygame.draw.line(surface, OUTLINE_COLOR, a, b, LINE_WIDTH)
 
 
 if __name__ == "__main__":
-    # Initialize Pygame
-    pg.init()
-    screen = pg.display.set_mode((1280, 960))
-    pg.display.set_caption("1D Perlin Noise")
 
+    # --------------- DEMO AUTO SCROLL ---------------
 
-    screen.fill((0, 0, 0))
+    def main() -> None:
+        pygame.init()
+        screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        pygame.display.set_caption("Scrolling Mountains")
+        clock = pygame.time.Clock()
 
-        
-    draw_mountains(screen, generate_mountains(), 960, 0)
-    pg.display.flip()
-    
-    running = True
-    while running:
-        for event in pg.event.get():
-            if event.type == pg.QUIT:
-                running = False
-        
+        # generate once for full world
+        peaks = generate_peaks(SCREEN_WIDTH * 3)
 
-    pg.quit()
+        camera_x = 0
+        scroll_speed = 1  # pixels per frame
+
+        running = True
+        while running:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+
+            # simple auto-scroll for demo
+            camera_x = (camera_x + scroll_speed) % SCREEN_WIDTH
+
+            screen.fill((0, 0, 0))
+            draw_mountains(screen, peaks, camera_x)
+            pygame.display.flip()
+            clock.tick(120)
+
+        pygame.quit()
+        sys.exit()
+
+    main()
