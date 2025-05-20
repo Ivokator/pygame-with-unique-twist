@@ -16,7 +16,8 @@ from pygame.math import Vector2
 
 import map
 
-from classes import Player, PlayerBullet, EnemyBullet, Enemy, EnemyGroup, MiniMap
+from classes import Player, PlayerBullet, EnemyBullet, Enemy, EnemyGroup, Humanoid, HumanoidGroup, HumanoidState, MiniMap
+from classes_misc import ParticleGroup
 
 from constants import *
 
@@ -51,6 +52,7 @@ class Game(object):
         self.running: bool = True
         self.top_widget: pg.Surface = pg.Surface((SCREEN_WIDTH, TOP_WIDGET_HEIGHT))
         self.surface: pg.Surface = pg.Surface((SCREEN_WIDTH, SCREEN_HEIGHT - TOP_WIDGET_HEIGHT))
+        self.gameplay_surface = pg.Surface((SCREEN_WIDTH, GAMEPLAY_HEIGHT))
 
         self.offset: Vector2 = Vector2(0, 0)
             
@@ -67,34 +69,19 @@ class Game(object):
         self.camera = Vector2(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
         self.current_lookahead = 0.0
 
+        self.particles: list[pg.sprite.Group] = []
+
+        self.initial_humanoids: int = 30
+
     def draw(self) -> None:
-        screen_height = screen.get_height()
-        screen_width = (screen_height * (SCREEN_WIDTH / SCREEN_HEIGHT))
-
-        screen_surface = pg.Surface((screen_width, screen_height - TOP_WIDGET_HEIGHT))
-
-        # Calculate the offset for the camera
-        heading = self.player.pos - self.camera
-        self.camera += heading * 0.05
-
-        self.camera_look_ahead()
-
-        self.offset = Vector2(
-            -self.camera.x + SCREEN_WIDTH//2,
-            -self.camera.y + SCREEN_HEIGHT//2
-        )
-
-        pg.transform.scale(
-            self.surface,
-            (screen_width, screen_height - TOP_WIDGET_HEIGHT),
-            screen_surface)
-
-        self.player.update(int(self.offset.x))
-        self.enemy_group.update(int(self.offset.x), screen_surface)
+        
+        self.enemy_group.update(self.offset.x, self.gameplay_surface)
+        self.humanoid_group.update(self.offset.x, self.gameplay_surface)
+        self.player.update(self.offset.x)
 
         # Blit and center surface on the screen
         screen.blit(
-            screen_surface,
+            self.gameplay_surface,
             ((screen.get_width() - self.surface.get_width()) / 4, TOP_WIDGET_HEIGHT))
              
         self.render_top_widget()
@@ -173,6 +160,32 @@ class Game(object):
             self.surface.blit(scaled_background, 
             (self.offset.x % background_width + i * background_width, 0))
 
+    def screen_rescale(self) -> None:
+        pg.transform.scale(
+            self.surface,
+            (SCREEN_WIDTH, GAMEPLAY_HEIGHT),
+            self.gameplay_surface)
+        
+    def calculate_offset(self) -> None:
+        """Calculates the camera offset based on player position and camera position.
+
+        The offset is used to center the player on the screen and create a parallax effect.
+        Changes self.offset and self.previousoffsets.
+        """
+        heading = self.player.pos - self.camera
+        self.camera += heading * 0.05
+
+        self.offset = Vector2(
+            -self.camera.x + SCREEN_WIDTH//2,
+            -self.camera.y + SCREEN_HEIGHT//2
+        )
+
+        # Calculate change in offset (d_offset)
+        self.previousoffsets.append(self.offset.x)
+        if len(self.previousoffsets) > 2:
+            self.previousoffsets.pop(0)
+            self.offset_change = self.previousoffsets[1] - self.previousoffsets[0]
+
     def play_game(self) -> None:
         # Game preparation
         pg.display.set_caption(WINDOW_TITLE)
@@ -188,23 +201,23 @@ class Game(object):
         time_since_last_enemy: float = 0.0
         test_spam_enemy_fire_time: float = 0.0
 
-        self.running = True
-        while self.running:
-            # Calculate change in offset (d_offset)
+        self.humanoid_group: HumanoidGroup = HumanoidGroup()
+        self.generate_humanoids()
 
-            self.previousoffsets.append(self.offset.x)
-            if len(self.previousoffsets) > 2:
-                self.previousoffsets.pop(0)
-                self.offset_change = self.previousoffsets[1] - self.previousoffsets[0]
-        
+        self.running = True
+
+        while self.running:
+            self.calculate_offset()
+            self.camera_look_ahead()
+
             # Update background
             screen.fill(BLACK)
             self.surface.fill(BLACK)
             self.background()
 
             # Draw mountains
-            map.draw_mountains(self.surface, self.peaks, int(self.offset.x), WORLD_WIDTH)
-        
+            map.draw_mountains(self.surface, self.peaks, self.offset.x, WORLD_WIDTH)
+
             # Event handling
             self.player.cooldown_timer += clock.get_time()
             self.event()
@@ -219,10 +232,6 @@ class Game(object):
 
                 bullet.update()
                 bullet.draw(self.surface)
-
-            # Draw/update player
-            self.player.draw(self.surface)
-            self.player.move(self.dt)
 
             # Spawn enemies
             time_since_last_enemy += self.dt
@@ -265,12 +274,31 @@ class Game(object):
                 for enemy in self.enemy_group.sprites():
                     enemy.fire_bullet(self.player.pos.x, self.player.pos.y)
                     test_spam_enemy_fire_time = 0.0
+
+            # Draw/update player
+            self.player.draw(self.surface)
+            self.player.move(self.dt)
             
             # Clamp player position
             self.player.rect.clamp_ip(self.surface.get_rect())
 
+            # Rescale screen
+            self.screen_rescale()
+
+            # particles!!!
+            if self.particles:
+                for group in self.particles[:]:
+                    group.update(self.dt, self.gameplay_surface, self.offset.x)
+
+                    # if group is empty
+                    if not group:
+                        print("delete!")
+                        self.particles.remove(group)
+                        del group
+
             # Draw screen
             self.draw()
+            
 
             # Update previous offset (move this to the end of the loop)
             self.previous_offset = self.offset
@@ -279,6 +307,18 @@ class Game(object):
             self.dt = clock.tick(FRAMES_PER_SECOND) / 1000
 
         quit()
+
+    def generate_humanoids(self) -> None:
+        for i in range(self.initial_humanoids):
+            spawn_x: int = random.randint(EDGE_SPAWN_BUFFER - (WORLD_WIDTH//2), (WORLD_WIDTH//2) - EDGE_SPAWN_BUFFER)
+            spawn_y: int = GROUND_Y
+            print(f"Humanoid spawned at ({spawn_x}, {spawn_y})")
+            self.humanoid_group.add(Humanoid(spawn_x, spawn_y))
+
+        # add to mini_map
+        self.mini_map.add(self.humanoid_group.sprites())
+
+
 
     def event(self) -> None:
         """Handles events."""
@@ -294,6 +334,8 @@ class Game(object):
                     self.player.fire_bullet()
                     print(self.player.pos.x)
 
+                elif event.key == pg.K_f: # temp explosion key
+                    self.particles.append(self.player.death_explosion())
 
     def main_menu(self) -> None:
         """Returns to the main menu."""

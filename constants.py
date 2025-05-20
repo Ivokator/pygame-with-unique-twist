@@ -45,12 +45,12 @@ mytheme = pm.themes.Theme(title_bar_style=pm.widgets.MENUBAR_STYLE_UNDERLINE_TIT
                           widget_font_size = RESOLUTION[0] // 30,
                           )
 
-
-
-
 # ---------------------------- MISC CONSTANTS ----------------------------
 # do not change unless you know what you're doing!!
 
 TOP_WIDGET_HEIGHT = SCREEN_HEIGHT // 6
 TOP_WIDGET_LINE_THICKNESS: int = 20
 GAMEPLAY_HEIGHT = SCREEN_HEIGHT - TOP_WIDGET_HEIGHT
+
+EDGE_SPAWN_BUFFER: int = SCREEN_WIDTH // 2
+GROUND_Y: int = GAMEPLAY_HEIGHT * 7 // 8

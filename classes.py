@@ -2,10 +2,14 @@ import math
 import random
 import typing
 
+from enum import Enum
+
 import pygame as pg
 from pygame.math import Vector2
 
+from classes_misc import Particle, ParticleGroup
 from constants import *
+import sound
 
 class Player(pg.sprite.Sprite):
     """Player character class.
@@ -128,6 +132,10 @@ class Player(pg.sprite.Sprite):
             self.cooldown_timer = 0
             bullet = PlayerBullet(self.rect.x, self.rect.y + (self.rect.height // 2), width=10, height=10, angle = self.direction * -180, speed=30)
             self.bullets.append(bullet)
+
+            # sound
+            random_sound = random.choice([sound.PLAYER_FIRE1, sound.PLAYER_FIRE2, sound.PLAYER_FIRE3, sound.PLAYER_FIRE4,])
+            random_sound.play()
     
     def switch_direction(self) -> None:
         """Switches the direction of the player."""
@@ -135,7 +143,18 @@ class Player(pg.sprite.Sprite):
             self.direction = 1
         else:
             self.direction = 0
-    
+
+    def death_explosion(self) -> pg.sprite.Group:
+        particle_group: ParticleGroup = ParticleGroup()
+
+        for i in range(50):
+            particle = Particle(self.pos, 100.0, 300.0, 0.5, 1.2, (255, 200, 50))
+            particle_group.add(particle)
+
+        print(particle_group)
+
+        return particle_group
+            
     def update(self, offset_x) -> None:
         """Update the player's position based on the offset."""
         self.rect.x = self.pos.x + offset_x
@@ -143,7 +162,6 @@ class Player(pg.sprite.Sprite):
     def draw(self, surface: pg.Surface) -> None:
         """Draws the player."""
         pg.draw.rect(surface, WHITE, self.rect)
-
 
 class PlayerBullet(object):
     def __init__(self, x: float, y: float, width: int, height: int, angle, speed: int) -> None:
@@ -164,7 +182,6 @@ class PlayerBullet(object):
         self.x += self.velocity.x
         self.y += self.velocity.y
 
-
 class EnemyBullet(object):
     def __init__(self, x: float | int, y: float | int, speed: int, angle, radius) -> None:
         self.x = x
@@ -183,7 +200,6 @@ class EnemyBullet(object):
     def update(self) -> None:
         self.x += self.velocity.x
         self.y += self.velocity.y
-
 
 class Enemy(pg.sprite.Sprite):
     def __init__(self, spawn_x: int, spawn_y: int) -> None:
@@ -221,7 +237,7 @@ class EnemyGroup(pg.sprite.Group):
     def __init__(self) -> None:
         super().__init__()
 
-    def update(self, offset_x: int, screen) -> None:
+    def update(self, offset_x: float, screen) -> None:
         for enemy in self.sprites():
             enemy.update(offset_x)
             enemy.draw(screen)
@@ -272,8 +288,9 @@ class MiniMap(pg.sprite.Group):
             #icon_x = max(0, min(self.surface_width  - self.icon_size, icon_x))
             icon_y = max(0, min(self.surface_height - self.icon_size, icon_y))
 
-
-            if isinstance(sprite, Player):
+            if isinstance(sprite, Humanoid):
+                pg.draw.rect(self.surface, DARK_GREY, pg.Rect(icon_x, icon_y, self.icon_size * 0.8, self.icon_size))
+            elif isinstance(sprite, Player):
                 pg.draw.rect(self.surface, WHITE, pg.Rect(icon_x, icon_y, self.icon_size, self.icon_size))
             elif isinstance(sprite, Enemy):
                 pg.draw.rect(self.surface, GREEN, pg.Rect(icon_x, icon_y, self.icon_size, self.icon_size))
@@ -301,6 +318,42 @@ class MiniMap(pg.sprite.Group):
         
         if len(points_to_draw) >= 2:
             pg.draw.lines(self.surface, BLUE, False, points_to_draw, width = 2)
+
+class HumanoidState(Enum):
+    IDLE = 0
+    WALKING = 1
+    CAPTURED = 2
+    RESCUED = 3
+    FALLING = 4
+    PANICKING = 5
+
+class Humanoid(pg.sprite.Sprite):
+    def __init__(self, x: int, y: int) -> None:
+        super().__init__()
+        self.width = 10
+        self.height = 20
+        self.draw_x: int | float = x
+
+        self.pos: Vector2 = Vector2(x, y)
+
+        self.state: HumanoidState = HumanoidState.IDLE
+        self.speed: int = 5
+
+    def draw(self, screen) -> None:
+        pg.draw.rect(screen, DARK_GREY, pg.Rect(self.draw_x, self.pos.y, self.width, self.height))
+
+    def update(self, offset_x: float) -> None:
+        self.draw_x = self.pos.x + offset_x
+
+class HumanoidGroup(pg.sprite.Group):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def update(self, offset_x: float, screen: pg.Surface) -> None:
+        # placeholder function until humanoids have image sprites
+        for sprite in self:
+            sprite.update(offset_x)
+            sprite.draw(screen)
 
 if __name__ == "__main__":
     # Test the classes

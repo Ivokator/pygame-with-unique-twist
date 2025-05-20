@@ -47,7 +47,7 @@ def generate_peaks(world_width: int) -> list[tuple[int, int]]:
     return peaks
 
 
-def draw_mountains(surface: pygame.Surface, peaks: list[tuple[int, int]], offset_x: int, world_width: int = SCREEN_WIDTH * 3) -> None:
+def draw_mountains(surface: pygame.Surface, peaks: list[tuple[int, int]], offset_x: float, world_width: int = SCREEN_WIDTH * 3) -> None:
     """
     Draw the mountain silhouette shifted by camera offset.
     
