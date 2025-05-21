@@ -75,7 +75,7 @@ class Game(object):
 
     def draw(self) -> None:
         
-        self.enemy_group.update(self.offset.x, self.gameplay_surface)
+        self.enemy_group.update(self.offset.x, self.player.pos, self.gameplay_surface)
         self.humanoid_group.update(self.offset.x, self.gameplay_surface)
         self.player.update(self.offset.x)
 
@@ -253,7 +253,7 @@ class Game(object):
 
             # Draw enemies
             for enemy in self.enemy_group.sprites():
-                enemy.update(self.offset.x)
+                enemy.update(self.offset.x, self.player.pos)
 
                 # off-screen culling
                 if enemy.pos.x < SCREEN_WIDTH * 1.2 and enemy.pos.x > 0 - SCREEN_WIDTH * 0.2:

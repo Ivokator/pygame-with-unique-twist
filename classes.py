@@ -216,19 +216,47 @@ class Enemy(pg.sprite.Sprite):
         self.pos = Vector2(spawn_x, spawn_y)
         self.width = 30
         self.height = 30
-        self.speed = 5
-        
+        self.speed = 1.2
+        self.max_speed = 2.0
+        self.acceleration = 0.10
+        self.velocity = Vector2(0, 0)
+        self.chase_distance = 1000
         self.offset_x = 0
-        
         self.bullets: typing.List[EnemyBullet] = []
-        #print(f"Enemy created at ({self.x}, {self.y})")
-        
+        self.wander_angle = random.uniform(0, 360)
+        self.wander_timer = 0.0
+        self.chase_probability = 0.6
+
     def draw(self, screen) -> None:
         pg.draw.rect(screen, GREEN, pg.Rect(self.draw_x, self.pos.y, self.width, self.height))
 
-    def update(self, offset_x: float) -> None:
+    def update(self, offset_x: float, player_pos: Vector2) -> None:
+        distance = self.pos.distance_to(player_pos)
+        if distance < self.chase_distance:
+            if random.random() < self.chase_probability:
+                direction = (player_pos - self.pos).normalize() if distance != 0 else Vector2(0, 0)
+                self.wander_timer += 1
+                if self.wander_timer > 30:
+                    self.wander_angle = random.uniform(-25, 25)
+                    self.wander_timer = 0
+                angle = math.atan2(direction.y, direction.x) + math.radians(self.wander_angle)
+                move_direction = Vector2(math.cos(angle), math.sin(angle))
+            else:
+                self.wander_timer += 1
+                if self.wander_timer > 30:
+                    self.wander_angle = random.uniform(0, 2 * math.pi)
+                    self.wander_timer = 0
+                move_direction = Vector2(math.cos(self.wander_angle), math.sin(self.wander_angle))
+            desired_velocity = move_direction * self.speed
+            self.velocity += (desired_velocity - self.velocity) * self.acceleration
+            if self.velocity.length() > self.max_speed:
+                self.velocity.scale_to_length(self.max_speed)
+            self.pos += self.velocity
+        else:
+            self.velocity *= 0.9
+            self.pos += self.velocity
         self.draw_x = self.pos.x + offset_x
-    
+
     def fire_bullet(self, player_x: float, player_y: float) -> None:
         dx = player_x - self.pos.x
         dy = player_y - self.pos.y
@@ -244,9 +272,9 @@ class EnemyGroup(pg.sprite.Group):
     def __init__(self) -> None:
         super().__init__()
 
-    def update(self, offset_x: float, screen) -> None:
+    def update(self, offset_x: float, player_pos, screen) -> None:
         for enemy in self.sprites():
-            enemy.update(offset_x)
+            enemy.update(offset_x, player_pos)
             enemy.draw(screen)
 
 
