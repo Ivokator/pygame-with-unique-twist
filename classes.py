@@ -83,19 +83,21 @@ class Player(pg.sprite.Sprite):
         
         # current image!
         self.image = pg.transform.scale(self.idle_sprite, (width, self.idle_sprite.get_height() / self.idle_sprite.get_width() * width))
+        self.mask = pg.mask.from_surface(self.image)
 
     def _health_indicator(self) -> pg.sprite.Group | None:
         """"""
-        # Non-traditional health indicator: emit smoke/sparks based on health
+        # non-traditional health indicator: emit smoke/sparks based on health
+
         if self.health < 100:
-            # The lower the health, the more intense the effect
             intensity = max(1, (100 - self.health) // 15)
             for _ in range(intensity):
-                # Randomize position near the player
+
+                # randomize position near the player
                 offset = Vector2(random.uniform(-self.rect.width // 2, self.rect.width // 2),
                                  random.uniform(self.rect.height // 2, self.rect.height))
                 
-                # Use explosion_effect for smoke/sparks
+                # smoke/sparks
                 return misc.explosion_effect(self.pos,
                                       number = 7, 
                                       min_lifetime=0.2, 
@@ -277,12 +279,16 @@ class Enemy(pg.sprite.Sprite):
         self.offset_x = 0
         
         self.bullets: typing.List[EnemyBullet] = []
+
         #print(f"Enemy created at ({self.x}, {self.y})")
+        self.idle_sprite = pg.image.load(os.path.join("images", "enemies", "mutant.png")).convert_alpha()
+
+        self.image = pg.transform.scale(self.idle_sprite, (self.width, self.idle_sprite.get_height() / self.idle_sprite.get_width() * self.width))
+        self.mask = pg.mask.from_surface(self.image)
     
     def death(self) -> pg.sprite.Group:
         self.kill()
         return misc.explosion_effect(self.pos, 50, min_lifetime=0.8, max_lifetime=2.0)
-        
         
     def draw(self, screen) -> None:
         pg.draw.rect(screen, GREEN, pg.Rect(self.draw_x, self.pos.y, self.width, self.height))
@@ -310,7 +316,6 @@ class EnemyGroup(pg.sprite.Group):
         for enemy in self.sprites():
             enemy.update(offset_x)
             enemy.draw(screen)
-
 
 class MiniMap(pg.sprite.Group):
     def __init__(self) -> None:

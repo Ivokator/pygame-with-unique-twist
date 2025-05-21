@@ -81,6 +81,12 @@ class Game(object):
         self.humanoid_group.update(self.offset.x, self.gameplay_surface)
         self.player.update(self.offset.x)
 
+        # Test circle at player's position
+        pg.draw.circle(self.gameplay_surface, RED, (self.player.pos.x + self.offset.x, self.player.pos.y), 10)
+
+        mask_to_surface = self.player.mask.to_surface()
+        self.gameplay_surface.blit(mask_to_surface, (self.player.pos.x + self.offset.x, self.player.pos.y))
+
         # Blit and center surface on the screen
         screen.blit(
             self.gameplay_surface,
@@ -263,13 +269,25 @@ class Game(object):
             for enemy in self.enemy_group.sprites():
                 enemy.update(self.offset.x)
 
+        
                 # off-screen culling
                 if enemy.pos.x < SCREEN_WIDTH * 1.2 and enemy.pos.x > 0 - SCREEN_WIDTH * 0.2:
                     enemy.draw(self.surface)
 
-                if pg.sprite.spritecollideany(self.player, enemy.bullets): # type: ignore
+                # collision detection with player
+                #if pg.sprite.spritecollide(self.player, self.enemy_group, True, pg.sprite.collide_mask):
+                #    self.player.health -= 20
+                #    print(self.player.health)
+
+
+                mask_to_surface = enemy.mask.to_surface()
+                self.gameplay_surface.blit(mask_to_surface, (enemy.pos.x + self.offset.x, enemy.pos.y))
+
+
+                if self.player.mask.overlap(enemy.mask, (enemy.pos.x - self.player.pos.x, enemy.pos.y - self.player.pos.y)):
                     self.player.health -= 20
                     print(self.player.health)
+                    print("yes!")
 
                 for ebullet in enemy.bullets:
                     # off-screen culling
@@ -277,10 +295,10 @@ class Game(object):
                         enemy.bullets.remove(ebullet)
                         del ebullet
                         continue
-        
+
                     ebullet.update()
                     ebullet.draw(self.surface, self.offset.x)
-                
+
                 # collision detection with player bullets
                 if pg.sprite.spritecollideany(enemy, self.player.bullets): # type: ignore
                     # hit enemy!
@@ -314,6 +332,7 @@ class Game(object):
                     if not group:
                         self.particles.remove(group)
                         del group
+
 
             # Draw screen
             self.draw()
