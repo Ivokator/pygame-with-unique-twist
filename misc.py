@@ -15,7 +15,8 @@ def explosion_effect(pos: Vector2,
                      min_speed: float = 120.0, 
                      max_speed: float =300.0,
                      min_lifetime: float = 1.2,
-                     max_lifetime: float = 3.0, 
+                     max_lifetime: float = 3.0,
+                     angle: int = random.randint(0, 360), 
                      base_colour: tuple[int, int, int] = (255, 200, 50)) -> pg.sprite.Group:
     
     """Creates a particle explosion effect by generating 
@@ -32,6 +33,7 @@ def explosion_effect(pos: Vector2,
         max_speed (float): Maximum speed of the particles.
         min_lifetime (float): Minimum lifetime of the particles.
         max_lifetime (float): Maximum lifetime of the particles.
+        angle (int): Angle (in degrees) to shoot the particle.
         base_colour (tuple[int, int, int]): Base color of the particles.
     Returns:
         pg.sprite.Group: A group of particles (sprites) representing the explosion.
@@ -39,11 +41,13 @@ def explosion_effect(pos: Vector2,
     particle_group: ParticleGroup = ParticleGroup()
 
     for _ in range(number):
+        angle = random.randint(0, 360)
         particle = Particle(pos, 
                             min_speed=min_speed, 
                             max_speed=max_speed, 
                             min_lifetime=min_lifetime, 
                             max_lifetime=max_lifetime, 
+                            angle=angle,
                             base_colour=base_colour)
         particle_group.add(particle)
 
@@ -52,12 +56,12 @@ def explosion_effect(pos: Vector2,
 class Particle(pg.sprite.Sprite):
     def __init__(self, spawn_pos: Vector2, 
                  min_speed: float, max_speed: float,
-                 min_lifetime: float, max_lifetime: float,
-                 base_colour: tuple[int, int, int]=(255, 255, 255)) -> None:
+                 min_lifetime: float, max_lifetime: float, 
+                 angle: int,
+                 base_colour: tuple[int, int, int]) -> None:
         super().__init__()
         self.pos: Vector2 = spawn_pos.copy()
 
-        angle: int = random.randint(0, 360)
         speed: float = random.uniform(min_speed, max_speed)
 
         self.velocity: Vector2 = pg.math.Vector2()
@@ -100,7 +104,6 @@ class Particle(pg.sprite.Sprite):
         
         draw_x: float = self.pos.x + offset_x
         screen.blit(temp_surface, (draw_x - radius/2, self.pos.y - radius/2))
-
 
 class ParticleGroup(pg.sprite.Group):
     def __init__(self) -> None:

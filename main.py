@@ -17,7 +17,8 @@ from pygame.math import Vector2
 import map
 import misc
 
-from classes import Player, PlayerBullet, EnemyBullet, Enemy, EnemyGroup, Humanoid, HumanoidGroup, HumanoidState, MiniMap
+from classes import Player, PlayerBullet, PlayerGroup, EnemyBullet, Enemy, EnemyGroup, Humanoid, HumanoidGroup, HumanoidState, MiniMap
+from downgrade_fx import apply_downgrade_effect
 
 from constants import *
 
@@ -45,7 +46,6 @@ def quit() -> None:
     pg.quit()
     sys.exit()
 
-
 class Game(object):
     def __init__(self) -> None:
         self.dt: float = 0.0
@@ -53,6 +53,9 @@ class Game(object):
         self.top_widget: pg.Surface = pg.Surface((SCREEN_WIDTH, TOP_WIDGET_HEIGHT))
         self.surface: pg.Surface = pg.Surface((SCREEN_WIDTH, SCREEN_HEIGHT - TOP_WIDGET_HEIGHT))
         self.gameplay_surface = pg.Surface((SCREEN_WIDTH, GAMEPLAY_HEIGHT))
+
+        # group containing player
+        self.player_group: PlayerGroup = PlayerGroup()
 
         self.offset: Vector2 = Vector2(0, 0)
             
@@ -62,7 +65,6 @@ class Game(object):
         self.current_background = test_space
         self.offset_change: float = 0.0
 
-        self.text_score = PRESS_START_FONT.render("000000", True, WHITE)
         self.mini_map: MiniMap = MiniMap()
         self.mini_map_clock: float = 0.0
 
@@ -86,9 +88,11 @@ class Game(object):
              
         self.render_top_widget()
 
+        apply_downgrade_effect(screen, 1)
+
         pg.display.flip()
 
-    def camera_look_ahead(self) -> None:
+    def _camera_look_ahead(self) -> None:
         """
         Smoothly moves the camera towards the player with a look-ahead effect.
         Locks player within an edge margin by locking the camera to the player when necessary.
@@ -133,8 +137,10 @@ class Game(object):
             (self.top_widget.get_width(), TOP_WIDGET_HEIGHT), TOP_WIDGET_LINE_THICKNESS)
 
         screen.blit(self.top_widget, (0, 0))
-        screen.blit(self.text_score, (100, TOP_WIDGET_HEIGHT - self.text_score.get_height() - 10))
 
+        # Render text
+        self.text_score: pg.Surface = PRESS_START_FONT.render(str(self.player_group.score).zfill(7), True, WHITE)
+        screen.blit(self.text_score, (100, TOP_WIDGET_HEIGHT - self.text_score.get_height() - 10))
         
         self.mini_map.add(*self.enemy_group.sprites())
         self.mini_map.update(self.offset.x)
@@ -160,13 +166,13 @@ class Game(object):
             self.surface.blit(scaled_background, 
             (self.offset.x % background_width + i * background_width, 0))
 
-    def screen_rescale(self) -> None:
+    def _screen_rescale(self) -> None:
         pg.transform.scale(
             self.surface,
             (SCREEN_WIDTH, GAMEPLAY_HEIGHT),
             self.gameplay_surface)
         
-    def calculate_offset(self) -> None:
+    def _calculate_offset(self) -> None:
         """Calculates the camera offset based on player position and camera position.
 
         The offset is used to center the player on the screen and create a parallax effect.
@@ -176,8 +182,8 @@ class Game(object):
         self.camera += heading * 0.05
 
         self.offset = Vector2(
-            -self.camera.x + SCREEN_WIDTH//2,
-            -self.camera.y + SCREEN_HEIGHT//2
+            int(-self.camera.x + SCREEN_WIDTH//2),
+            int(-self.camera.y + SCREEN_HEIGHT//2)
         )
 
         # Calculate change in offset (d_offset)
@@ -192,7 +198,9 @@ class Game(object):
         self.enemy_group: EnemyGroup = EnemyGroup()
 
         # Intialize player
-        self.player: Player = Player(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4, PLAYER_SIZE, PLAYER_SIZE)
+        self.player: Player = Player(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4, PLAYER_WIDTH, PLAYER_HEIGHT)
+        self.player_group.add(self.player)
+
         self.speed_threshold: float = self.player.max_speed_x * 0.7 # threshold for look-ahead
         self.mini_map.add(self.player)
 
@@ -207,8 +215,8 @@ class Game(object):
         self.running = True
 
         while self.running:
-            self.calculate_offset()
-            self.camera_look_ahead()
+            self._calculate_offset()
+            self._camera_look_ahead()
 
             # Update background
             screen.fill(BLACK)
@@ -259,6 +267,10 @@ class Game(object):
                 if enemy.pos.x < SCREEN_WIDTH * 1.2 and enemy.pos.x > 0 - SCREEN_WIDTH * 0.2:
                     enemy.draw(self.surface)
 
+                if pg.sprite.spritecollideany(self.player, enemy.bullets): # type: ignore
+                    self.player.health -= 20
+                    print(self.player.health)
+
                 for ebullet in enemy.bullets:
                     # off-screen culling
                     if ebullet.x + self.offset.x < SCREEN_WIDTH * -0.2 or ebullet.x + self.offset.x > SCREEN_WIDTH * 1.2 or ebullet.y > SCREEN_HEIGHT or ebullet.y < 0:
@@ -268,7 +280,14 @@ class Game(object):
         
                     ebullet.update()
                     ebullet.draw(self.surface, self.offset.x)
-                    
+                
+                # collision detection with player bullets
+                if pg.sprite.spritecollideany(enemy, self.player.bullets): # type: ignore
+                    # hit enemy!
+                    self.particles.append(enemy.death())
+                    del enemy
+                    self.player_group.score += 500
+
             test_spam_enemy_fire_time += self.dt
             if test_spam_enemy_fire_time > 1.3:
                 for enemy in self.enemy_group.sprites():
@@ -283,7 +302,7 @@ class Game(object):
             self.player.rect.clamp_ip(self.surface.get_rect())
 
             # Rescale screen
-            self.screen_rescale()
+            self._screen_rescale()
 
             # particles!!!
             if self.particles:
@@ -299,7 +318,6 @@ class Game(object):
             # Draw screen
             self.draw()
             
-
             # Update previous offset (move this to the end of the loop)
             self.previous_offset = self.offset
 

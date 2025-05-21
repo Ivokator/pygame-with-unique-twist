@@ -38,13 +38,16 @@ class Player(pg.sprite.Sprite):
         cooldown_timer (int): Timer to track bullet cooldown.
     """
     class States(Enum):
-        ALIVE = auto() # placeholder state
+        IDLE = auto() # default
+        MOVING = auto()
         DEAD = auto()
 
     def __init__(self, x: int, y: int, width: int, height: int) -> None:
         super().__init__()
         self.rect: pg.Rect = pg.Rect(x, y, width, height)
         self.pos: Vector2 = Vector2(x, y)
+
+        self.health: int = 100
 
         # Physics parameters
         self.velocity: Vector2 = Vector2(0, 0)
@@ -53,6 +56,8 @@ class Player(pg.sprite.Sprite):
         self.max_speed_x: int = 10
         self.max_speed_y: int = 8
         self.accel_rate: int = 50
+
+        self.draw_x = x
 
         # careful that drag does not exceed accel_rate
         self.drag_x: int = 1 
@@ -67,7 +72,36 @@ class Player(pg.sprite.Sprite):
         self.lookahead_compensation: float = 0.0
 
         #player states
-        self.state = Player.States.ALIVE
+        self.state = Player.States.IDLE
+
+        self.idle_sprite = pg.image.load(os.path.join("images", "player", "idle.png")).convert_alpha()
+
+        self.move_sprites = [pg.image.load(os.path.join("images", "player", "moving1.png")).convert_alpha(),
+                             pg.image.load(os.path.join("images", "player", "moving2.png")).convert_alpha(),
+                             pg.image.load(os.path.join("images", "player", "moving3.png")).convert_alpha(),
+                             ]
+        
+        # current image!
+        self.image = pg.transform.scale(self.idle_sprite, (width, self.idle_sprite.get_height() / self.idle_sprite.get_width() * width))
+
+    def _health_indicator(self) -> pg.sprite.Group | None:
+        """"""
+        # Non-traditional health indicator: emit smoke/sparks based on health
+        if self.health < 100:
+            # The lower the health, the more intense the effect
+            intensity = max(1, (100 - self.health) // 15)
+            for _ in range(intensity):
+                # Randomize position near the player
+                offset = Vector2(random.uniform(-self.rect.width // 2, self.rect.width // 2),
+                                 random.uniform(self.rect.height // 2, self.rect.height))
+                
+                # Use explosion_effect for smoke/sparks
+                return misc.explosion_effect(self.pos,
+                                      number = 7, 
+                                      min_lifetime=0.2, 
+                                      max_lifetime=0.7, 
+                                      base_colour=random.choice([(120,120,120), (200,200,50), (255,140,0)]))
+        return None
 
     def move(self, dt) -> None:
         if self.state == Player.States.DEAD:
@@ -136,39 +170,53 @@ class Player(pg.sprite.Sprite):
 
     def fire_bullet(self) -> None:
         """Fires a bullet."""
+        if self.state == Player.States.DEAD:
+            return
         # Create a bullet at the player's position
         # and set its angle and speed
         if self.cooldown_timer > self.bullet_cooldown_ms:
             self.cooldown_timer = 0
-            bullet = PlayerBullet(self.rect.x, self.rect.y + (self.rect.height // 2), width=10, height=10, angle = self.direction * -180, speed=30)
+            bullet = PlayerBullet(self.rect.x + (self.rect.width // 2), self.rect.y + (self.rect.height // 2), width=10, height=10, angle = self.direction * -180, speed=30)
             self.bullets.append(bullet)
 
             # sound
             random_sound = random.choice([sound.PLAYER_FIRE1, sound.PLAYER_FIRE2, sound.PLAYER_FIRE3, sound.PLAYER_FIRE4,])
             random_sound.play()
-    
-    def switch_direction(self) -> None:
-        """Switches the direction of the player."""
-        if self.direction == 0:
-            self.direction = 1
-        else:
-            self.direction = 0
 
     def death(self) -> pg.sprite.Group:
         self.state = Player.States.DEAD
         return misc.explosion_effect(self.pos, 70)
             
     def update(self, offset_x) -> None:
-        """Update the player's position based on the offset."""
         if self.state == Player.States.DEAD:
             return
-        self.rect.x = self.pos.x + offset_x
+        self.draw_x = int(self.pos.x + offset_x)
+        self.rect.x, self.rect.y = int(self.draw_x), int(self.pos.y)
+        self.pos.y = max(0, min(GAMEPLAY_HEIGHT - self.rect.height, self.pos.y))
 
     def draw(self, surface: pg.Surface) -> None:
-        """Draws the player."""
         if self.state == Player.States.DEAD:
             return
-        pg.draw.rect(surface, WHITE, self.rect)
+        if self.direction == 0:
+            surface.blit(self.image, (self.draw_x, self.rect.y))
+        else:
+            self.flipped = pg.transform.flip(self.image, True, False)
+            surface.blit(self.flipped, (self.draw_x, self.rect.y))
+
+        #pg.draw.rect(surface, WHITE, self.rect)
+
+class PlayerGroup(pg.sprite.GroupSingle):
+    """
+    A sprite group that manages persistent player statistics such as points.
+    Unlike the Player class (representing the player's ship, which is reloaded or reset each round),
+    PlayerGroup is intended to track stats that persist across rounds, such as score, lives, or achievements.
+    """
+    def __init__(self) -> None:
+        super().__init__()
+        self.score: int = 0
+        self.lives: int = 5
+
+
 
 class PlayerBullet(object):
     def __init__(self, x: float, y: float, width: int, height: int, angle, speed: int) -> None:
@@ -176,6 +224,7 @@ class PlayerBullet(object):
         self.y = y
         self.width = width
         self.height = height
+        self.rect: pg.Rect = pg.Rect(x, y, width, height)
 
         self.speed = speed
         self.angle = angle
@@ -189,11 +238,14 @@ class PlayerBullet(object):
         self.x += self.velocity.x
         self.y += self.velocity.y
 
+        self.rect.x, self.rect.y = int(self.x), int(self.y)
+
 class EnemyBullet(object):
     def __init__(self, x: float | int, y: float | int, speed: int, angle, radius) -> None:
         self.x = x
         self.y = y
         self.radius = radius
+        self.rect: pg.Rect = pg.Rect(x, y, radius, radius)
 
         self.speed = speed
         self.angle = angle
@@ -202,11 +254,14 @@ class EnemyBullet(object):
 
     def draw(self, screen: pg.Surface, offset_x: float):
        screen_x = self.x + offset_x
-       pg.draw.circle(screen, RED, (screen_x, self.y), self.radius)
+       pg.draw.circle(screen, WHITE, (screen_x, self.y), self.radius)
     
     def update(self) -> None:
         self.x += self.velocity.x
         self.y += self.velocity.y
+
+        self.rect.x, self.rect.y = int(self.x), int(self.y)
+
 
 class Enemy(pg.sprite.Sprite):
     def __init__(self, spawn_x: int, spawn_y: int) -> None:
@@ -216,18 +271,25 @@ class Enemy(pg.sprite.Sprite):
         self.pos = Vector2(spawn_x, spawn_y)
         self.width = 30
         self.height = 30
+        self.rect: pg.Rect = pg.Rect(spawn_x, spawn_y, self.width, self.height)
         self.speed = 5
         
         self.offset_x = 0
         
         self.bullets: typing.List[EnemyBullet] = []
         #print(f"Enemy created at ({self.x}, {self.y})")
+    
+    def death(self) -> pg.sprite.Group:
+        self.kill()
+        return misc.explosion_effect(self.pos, 50, min_lifetime=0.8, max_lifetime=2.0)
+        
         
     def draw(self, screen) -> None:
         pg.draw.rect(screen, GREEN, pg.Rect(self.draw_x, self.pos.y, self.width, self.height))
 
     def update(self, offset_x: float) -> None:
         self.draw_x = self.pos.x + offset_x
+        self.rect.x = int(self.draw_x)
     
     def fire_bullet(self, player_x: float, player_y: float) -> None:
         dx = player_x - self.pos.x

@@ -9,7 +9,7 @@ NUM_SEGMENTS: int = 500
 MIN_HEIGHT: int = SCREEN_HEIGHT // 4
 MAX_HEIGHT: int = SCREEN_HEIGHT // 2
 #
-MOUNTAIN_COLOR: tuple[int, int, int] = (96, 135, 106)
+MOUNTAIN_COLOR: tuple[int, int, int] = (8, 5, 3)
 OUTLINE_COLOR: tuple[int, int, int] = (137, 196, 152)
 LINE_WIDTH: int = 3
 
