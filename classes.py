@@ -139,6 +139,7 @@ class Player(pg.sprite.Sprite):
         # Create a bullet at the player's position
         # and set its angle and speed
         if self.cooldown_timer > self.bullet_cooldown_ms:
+            
             self.cooldown_timer = 0
             bullet = PlayerBullet(self.rect.x, self.rect.y + (self.rect.height // 2), width=10, height=10, angle = self.direction * -180, speed=30)
             self.bullets.append(bullet)
@@ -226,38 +227,74 @@ class Enemy(pg.sprite.Sprite):
         self.wander_angle = random.uniform(0, 360)
         self.wander_timer = 0.0
         self.chase_probability = 0.6
+        self.visible_humanoids: list[Vector2] = []
+        self.scanning = False #todo scan for humanoids only once
 
     def draw(self, screen) -> None:
         pg.draw.rect(screen, GREEN, pg.Rect(self.draw_x, self.pos.y, self.width, self.height))
 
-    def update(self, offset_x: float, player_pos: Vector2) -> None:
+    def update(self, offset_x: float, player_pos: Vector2, humanoids: list) -> None:
         distance = self.pos.distance_to(player_pos)
+        
         if distance < self.chase_distance:
+            
             if random.random() < self.chase_probability:
+                               
                 direction = (player_pos - self.pos).normalize() if distance != 0 else Vector2(0, 0)
                 self.wander_timer += 1
+                
                 if self.wander_timer > 30:
-                    self.wander_angle = random.uniform(-25, 25)
+                    self.wander_angle = random.uniform(-10, 10)
                     self.wander_timer = 0
+                    
                 angle = math.atan2(direction.y, direction.x) + math.radians(self.wander_angle)
                 move_direction = Vector2(math.cos(angle), math.sin(angle))
-            else:
+                
+            else:                
                 self.wander_timer += 1
+                
                 if self.wander_timer > 30:
+                    
                     self.wander_angle = random.uniform(0, 2 * math.pi)
                     self.wander_timer = 0
+                    
                 move_direction = Vector2(math.cos(self.wander_angle), math.sin(self.wander_angle))
+                
             desired_velocity = move_direction * self.speed
             self.velocity += (desired_velocity - self.velocity) * self.acceleration
+            
             if self.velocity.length() > self.max_speed:
+                
                 self.velocity.scale_to_length(self.max_speed)
+                
             self.pos += self.velocity
+            
         else:
-            self.velocity *= 0.9
-            self.pos += self.velocity
+            
+            for humanoid in humanoids:
+                
+                distance = self.pos.distance_to(humanoid.pos)
+                
+                if distance < self.chase_distance:
+                    
+                    self.visible_humanoids.append(humanoid.pos)
+                
+                """ laaaaagss
+            
+                for humanoid in self.visible_humanoids:
+                    closest_humanoid = min(self.visible_humanoids, key=lambda humanid: self.pos.distance_to(humanoid))
+                    direction = (closest_humanoid - self.pos).normalize() if distance != 0 else Vector2(0, 0)
+                    angle = math.atan2(direction.y, direction.x)
+                    move_direction = Vector2(math.cos(angle), math.sin(angle))
+                    self.velocity += (move_direction - self.velocity) * self.acceleration
+                    
+                """
+                         
+                
         self.draw_x = self.pos.x + offset_x
 
     def fire_bullet(self, player_x: float, player_y: float) -> None:
+        
         dx = player_x - self.pos.x
         dy = player_y - self.pos.y
         angle = math.degrees(math.atan2(dy, dx)) + random.randint(-2, 2) # randomize angle
@@ -272,9 +309,9 @@ class EnemyGroup(pg.sprite.Group):
     def __init__(self) -> None:
         super().__init__()
 
-    def update(self, offset_x: float, player_pos, screen) -> None:
+    def update(self, offset_x: float, player_pos, humanoids_pos, screen) -> None:
         for enemy in self.sprites():
-            enemy.update(offset_x, player_pos)
+            enemy.update(offset_x, player_pos, humanoids_pos)
             enemy.draw(screen)
 
 
