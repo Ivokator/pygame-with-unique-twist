@@ -15,9 +15,9 @@ from pygame.math import Vector2
 #from pygame_widgets.button import ButtonArray # type: ignore
 
 import map
+import misc
 
 from classes import Player, PlayerBullet, EnemyBullet, Enemy, EnemyGroup, Humanoid, HumanoidGroup, HumanoidState, MiniMap
-from classes_misc import ParticleGroup
 
 from constants import *
 
@@ -287,12 +287,12 @@ class Game(object):
 
             # particles!!!
             if self.particles:
+                # update each particle group
                 for group in self.particles[:]:
                     group.update(self.dt, self.gameplay_surface, self.offset.x)
 
                     # if group is empty
                     if not group:
-                        print("delete!")
                         self.particles.remove(group)
                         del group
 
@@ -318,8 +318,6 @@ class Game(object):
         # add to mini_map
         self.mini_map.add(self.humanoid_group.sprites())
 
-
-
     def event(self) -> None:
         """Handles events."""
         for event in pg.event.get():
@@ -335,7 +333,8 @@ class Game(object):
                     print(self.player.pos.x)
 
                 elif event.key == pg.K_f: # temp explosion key
-                    self.particles.append(self.player.death_explosion())
+                    if self.player.state != Player.States.DEAD:
+                        self.particles.append(self.player.death())
 
     def main_menu(self) -> None:
         """Returns to the main menu."""

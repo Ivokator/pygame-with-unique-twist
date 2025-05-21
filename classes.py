@@ -2,14 +2,15 @@ import math
 import random
 import typing
 
-from enum import Enum
+from enum import Enum, auto
 
 import pygame as pg
 from pygame.math import Vector2
 
-from classes_misc import Particle, ParticleGroup
-from constants import *
+import misc
 import sound
+
+from constants import *
 
 class Player(pg.sprite.Sprite):
     """Player character class.
@@ -36,6 +37,10 @@ class Player(pg.sprite.Sprite):
         bullet_cooldown_ms (float): Cooldown time in milliseconds between firing bullets.
         cooldown_timer (int): Timer to track bullet cooldown.
     """
+    class States(Enum):
+        ALIVE = auto() # placeholder state
+        DEAD = auto()
+
     def __init__(self, x: int, y: int, width: int, height: int) -> None:
         super().__init__()
         self.rect: pg.Rect = pg.Rect(x, y, width, height)
@@ -56,13 +61,18 @@ class Player(pg.sprite.Sprite):
         self.direction = 0  # left:0, right:1
 
         self.bullets: typing.List[PlayerBullet] = []
-        self.bullet_cooldown_ms: float = 100
+        self.bullet_cooldown_ms: float = 50
         self.cooldown_timer: int = 0
 
         self.lookahead_compensation: float = 0.0
 
+        #player states
+        self.state = Player.States.ALIVE
 
     def move(self, dt) -> None:
+        if self.state == Player.States.DEAD:
+            return
+
         keys = pg.key.get_pressed()
 
         # HORIZONTAL ACCELERATION 
@@ -144,23 +154,20 @@ class Player(pg.sprite.Sprite):
         else:
             self.direction = 0
 
-    def death_explosion(self) -> pg.sprite.Group:
-        particle_group: ParticleGroup = ParticleGroup()
-
-        for i in range(50):
-            particle = Particle(self.pos, 100.0, 300.0, 0.5, 1.2, (255, 200, 50))
-            particle_group.add(particle)
-
-        print(particle_group)
-
-        return particle_group
+    def death(self) -> pg.sprite.Group:
+        self.state = Player.States.DEAD
+        return misc.explosion_effect(self.pos, 70)
             
     def update(self, offset_x) -> None:
         """Update the player's position based on the offset."""
+        if self.state == Player.States.DEAD:
+            return
         self.rect.x = self.pos.x + offset_x
 
     def draw(self, surface: pg.Surface) -> None:
         """Draws the player."""
+        if self.state == Player.States.DEAD:
+            return
         pg.draw.rect(surface, WHITE, self.rect)
 
 class PlayerBullet(object):
