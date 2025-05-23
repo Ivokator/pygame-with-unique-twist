@@ -209,9 +209,14 @@ class EnemyBullet(object):
         self.x += self.velocity.x
         self.y += self.velocity.y
 
+class EnemyState(Enum):
+    ATTACKING = 1
+    CAPTURING = 2
+
 class Enemy(pg.sprite.Sprite):
     def __init__(self, spawn_x: int, spawn_y: int) -> None:
         super().__init__()
+        self.state = EnemyState.ATTACKING
         self.spawn_x = spawn_x
         self.spawn_y = spawn_y
         self.pos = Vector2(spawn_x, spawn_y)
@@ -237,7 +242,7 @@ class Enemy(pg.sprite.Sprite):
     def update(self, offset_x: float, player_pos: Vector2, humanoids: list) -> None:
         distance = self.pos.distance_to(player_pos)
         
-        if distance < self.chase_distance:
+        if distance < self.chase_distance and self.state != EnemyState.CAPTURING:
             
             self.scanned = False
             
@@ -281,7 +286,6 @@ class Enemy(pg.sprite.Sprite):
                     self.visible_humanoids.append(humanoid.pos)
                     
                 self.closest_humanoid = min(self.visible_humanoids, key=lambda x: self.pos.distance_to(x))
-                print(f"closest humanoid: {self.closest_humanoid}")
                 
                 self.scanned = True
                 
@@ -298,9 +302,20 @@ class Enemy(pg.sprite.Sprite):
                 
             self.pos += self.velocity
             
+            #update the closest humanoid status to captured when reached
+            if self.pos.distance_to(self.closest_humanoid) < 10:
+                for humanoid in humanoids:
+                    if humanoid.pos == self.closest_humanoid:
+                        humanoid.state = HumanoidState.CAPTURED
+                        self.state = EnemyState.CAPTURING
+                        break
+            
         self.draw_x = self.pos.x + offset_x
 
     def fire_bullet(self, player_x: float, player_y: float) -> None:
+        
+        if self.state == EnemyState.CAPTURING:
+            return
         
         dx = player_x - self.pos.x
         dy = player_y - self.pos.y
@@ -416,13 +431,17 @@ class Humanoid(pg.sprite.Sprite):
         self.pos: Vector2 = Vector2(x, y)
 
         self.state: HumanoidState = HumanoidState.IDLE
-        self.speed: int = 5
+        self.speed: int = -0.5
 
     def draw(self, screen) -> None:
         pg.draw.rect(screen, DARK_GREY, pg.Rect(self.draw_x, self.pos.y, self.width, self.height))
 
     def update(self, offset_x: float) -> None:
         self.draw_x = self.pos.x + offset_x
+        
+        if self.state == HumanoidState.CAPTURED:
+            self.pos.y += self.speed
+
 
 class HumanoidGroup(pg.sprite.Group):
     def __init__(self) -> None:
