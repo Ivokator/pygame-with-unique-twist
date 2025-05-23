@@ -81,12 +81,6 @@ class Game(object):
         self.humanoid_group.update(self.offset.x, self.gameplay_surface)
         self.player.update(self.offset.x)
 
-        # Test circle at player's position
-        pg.draw.circle(self.gameplay_surface, RED, (self.player.pos.x + self.offset.x, self.player.pos.y), 10)
-
-        mask_to_surface = self.player.mask.to_surface()
-        self.gameplay_surface.blit(mask_to_surface, (self.player.pos.x + self.offset.x, self.player.pos.y))
-
         # Blit and center surface on the screen
         screen.blit(
             self.gameplay_surface,
@@ -94,7 +88,7 @@ class Game(object):
              
         self.render_top_widget()
 
-        apply_downgrade_effect(screen, 1)
+        apply_downgrade_effect(screen, 2)
 
         pg.display.flip()
 
@@ -145,14 +139,21 @@ class Game(object):
         screen.blit(self.top_widget, (0, 0))
 
         # Render text
-        self.text_score: pg.Surface = PRESS_START_FONT.render(str(self.player_group.score).zfill(7), True, WHITE)
+        self.text_score: pg.Surface = PRESS_START_FONT.render(str(self.player_group.score).zfill(7), False, WHITE)
         screen.blit(self.text_score, (100, TOP_WIDGET_HEIGHT - self.text_score.get_height() - 10))
         
+        # Display lives
+        self.display_lives()
+
         self.mini_map.add(*self.enemy_group.sprites())
         self.mini_map.update(self.offset.x)
         
         screen.blit(self.mini_map.surface, ((self.surface.get_width() // 2) - (self.mini_map.surface.get_width() // 2), 0))
 
+    def display_lives(self):
+        for i in range(self.player_group.lives):
+            screen.blit(self.player_group.lives_image, (self.text_score.get_width() + 100 - (i*self.player_group.lives_width), TOP_WIDGET_HEIGHT - self.text_score.get_height() - self.player_group.lives_height - 25))
+    
     def background(self) -> None:
         # Draw the background
 
@@ -198,6 +199,7 @@ class Game(object):
             self.previousoffsets.pop(0)
             self.offset_change = self.previousoffsets[1] - self.previousoffsets[0]
 
+
     def play_game(self) -> None:
         # Game preparation
         pg.display.set_caption(WINDOW_TITLE)
@@ -212,8 +214,14 @@ class Game(object):
 
         self.peaks: list[tuple[int, int]] = map.generate_peaks(WORLD_WIDTH)
         self.mini_map.create_mountain_representation(self.peaks, WORLD_WIDTH)
+
         time_since_last_enemy: float = 0.0
         test_spam_enemy_fire_time: float = 0.0
+        particle_timer: float = 0.0
+        self.player_dead_timer: float = 0.0
+
+        revival_particles: pg.sprite.Group | None = None
+        currently_reviving: bool = False
 
         self.humanoid_group: HumanoidGroup = HumanoidGroup()
         self.generate_humanoids()
@@ -222,6 +230,7 @@ class Game(object):
 
         while self.running:
             self._calculate_offset()
+
             self._camera_look_ahead()
 
             # Update background
@@ -231,6 +240,18 @@ class Game(object):
 
             # Draw mountains
             map.draw_mountains(self.surface, self.peaks, self.offset.x, WORLD_WIDTH)
+
+            # if dead, respawn
+            if self.player.state == Player.States.DEAD and not currently_reviving:
+                self.player_dead_timer += self.dt
+                if self.player_dead_timer >= 2.0:
+                    self.player.pos = Vector2(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4)
+                    revival_particles = self.player.revive(self.offset.x)
+                    self.particles.append(revival_particles)
+
+                    currently_reviving = True
+                    self.player_dead_timer = 0.0
+
 
             # Event handling
             self.player.cooldown_timer += clock.get_time()
@@ -252,7 +273,7 @@ class Game(object):
 
             if time_since_last_enemy >= 2:
                 # Spawn enemy
-                enemy = Enemy(random.randint(-SCREEN_WIDTH, SCREEN_WIDTH*2), random.randint(0, self.surface.get_height()))
+                enemy = Enemy(random.randint(-SCREEN_WIDTH, SCREEN_WIDTH*2), random.randint(TOP_WIDGET_HEIGHT, GAMEPLAY_HEIGHT))
 
                 # Spawn no more than 5 enemies at once
                 if len(self.enemy_group.sprites()) < 5:
@@ -269,27 +290,31 @@ class Game(object):
             for enemy in self.enemy_group.sprites():
                 enemy.update(self.offset.x)
 
-        
                 # off-screen culling
                 if enemy.pos.x < SCREEN_WIDTH * 1.2 and enemy.pos.x > 0 - SCREEN_WIDTH * 0.2:
                     enemy.draw(self.surface)
 
-                # collision detection with player
-                #if pg.sprite.spritecollide(self.player, self.enemy_group, True, pg.sprite.collide_mask):
-                #    self.player.health -= 20
-                #    print(self.player.health)
-
-
-                mask_to_surface = enemy.mask.to_surface()
-                self.gameplay_surface.blit(mask_to_surface, (enemy.pos.x + self.offset.x, enemy.pos.y))
-
-
-                if self.player.mask.overlap(enemy.mask, (enemy.pos.x - self.player.pos.x, enemy.pos.y - self.player.pos.y)):
-                    self.player.health -= 20
-                    print(self.player.health)
-                    print("yes!")
+                # enemy collision detection w/ player
+                if self.player.hitbox_top.colliderect(enemy.rect) or self.player.hitbox_bottom.colliderect(enemy.rect):
+                    if self.player.state != Player.States.DEAD:
+                        self.player.gets_hit_by(enemy)
 
                 for ebullet in enemy.bullets:
+                    # enemy bullet collision detection w/ player
+                    if self.player.hitbox_top.colliderect(ebullet.rect) or self.player.hitbox_bottom.colliderect(ebullet.rect):
+                        if self.player.state != Player.States.DEAD:
+                            self.player.gets_hit_by(ebullet)
+                            self.particles.append(misc.explosion_effect(Vector2(ebullet.x, ebullet.y),
+                                                                        number=10,
+                                                                        min_lifetime=0.2,
+                                                                        max_lifetime=0.35,
+                                                                        min_speed=200,
+                                                                        ))
+
+                            enemy.bullets.remove(ebullet)
+                            del ebullet
+                            continue
+
                     # off-screen culling
                     if ebullet.x + self.offset.x < SCREEN_WIDTH * -0.2 or ebullet.x + self.offset.x > SCREEN_WIDTH * 1.2 or ebullet.y > SCREEN_HEIGHT or ebullet.y < 0:
                         enemy.bullets.remove(ebullet)
@@ -300,19 +325,24 @@ class Game(object):
                     ebullet.draw(self.surface, self.offset.x)
 
                 # collision detection with player bullets
-                if pg.sprite.spritecollideany(enemy, self.player.bullets): # type: ignore
+                if (collided_bullet :=pg.sprite.spritecollideany(enemy, self.player.bullets)): # type: ignore
                     # hit enemy!
                     self.particles.append(enemy.death())
+                    self.player.bullets.remove(collided_bullet)
                     del enemy
-                    self.player_group.score += 500
+                    self.player_group.score += 50
 
             test_spam_enemy_fire_time += self.dt
             if test_spam_enemy_fire_time > 1.3:
                 for enemy in self.enemy_group.sprites():
                     enemy.fire_bullet(self.player.pos.x, self.player.pos.y)
                     test_spam_enemy_fire_time = 0.0
+            
+            # Draw player
+            if self.player.health <= 0 and self.player.state != Player.States.DEAD:
+                self.player.state = Player.States.DEAD
+                self.particles.append(self.player.death())
 
-            # Draw/update player
             self.player.draw(self.surface)
             self.player.move(self.dt)
             
@@ -331,7 +361,21 @@ class Game(object):
                     # if group is empty
                     if not group:
                         self.particles.remove(group)
+
+                        # respawn player
+                        if group is revival_particles:
+                            revival_particles = None
+                            currently_reviving = False
+
+                            self.player.state = Player.States.IDLE
+                            self.player_group.lives -= 1
+
                         del group
+            
+            particle_timer += self.dt
+            if particle_timer > 1.0:
+                if (particle_group := self.player.health_indicator(self.offset.x)):
+                    self.particles.append(particle_group)
 
 
             # Draw screen

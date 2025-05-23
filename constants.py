@@ -34,7 +34,7 @@ DARKER_GREY: tuple[int, ...] = (32, 32, 32)
 # SCORE TEXT
 SYSFONT = pg.font.get_default_font()
 DEFAULT_FONT = pg.font.SysFont(SYSFONT, 24)
-PRESS_START_FONT = pg.font.Font(os.path.join("fonts", "PressStart2P-Regular.ttf"), 24)
+PRESS_START_FONT = pg.font.Font(os.path.join("fonts", "PressStart2P-Regular.ttf"), 28)
 
 # Pygame Menu Themes
 mytheme = pm.themes.Theme(title_bar_style=pm.widgets.MENUBAR_STYLE_UNDERLINE_TITLE,

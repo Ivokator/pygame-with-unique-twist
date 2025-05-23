@@ -54,14 +54,14 @@ class Player(pg.sprite.Sprite):
         self.accel_x: float = 0.0
         self.accel_y: float = 0.0
         self.max_speed_x: int = 10
-        self.max_speed_y: int = 8
+        self.max_speed_y: int = 7
         self.accel_rate: int = 50
 
         self.draw_x = x
 
         # careful that drag does not exceed accel_rate
         self.drag_x: int = 1 
-        self.drag_y: int = 20
+        self.drag_y: int = 50
 
         self.direction = 0  # left:0, right:1
 
@@ -70,6 +70,9 @@ class Player(pg.sprite.Sprite):
         self.cooldown_timer: int = 0
 
         self.lookahead_compensation: float = 0.0
+
+        self.hitbox_top: pg.Rect
+        self.hitbox_bottom: pg.Rect
 
         #player states
         self.state = Player.States.IDLE
@@ -83,26 +86,28 @@ class Player(pg.sprite.Sprite):
         
         # current image!
         self.image = pg.transform.scale(self.idle_sprite, (width, self.idle_sprite.get_height() / self.idle_sprite.get_width() * width))
-        self.mask = pg.mask.from_surface(self.image)
 
-    def _health_indicator(self) -> pg.sprite.Group | None:
-        """"""
-        # non-traditional health indicator: emit smoke/sparks based on health
 
+    def health_indicator(self, offset_x: float) -> pg.sprite.Group | None:
+        if self.state == Player.States.DEAD:
+            return None
+        
+        # emit smoke/sparks based on health
+        # avoids having unneeded hp green bar
         if self.health < 100:
-            intensity = max(1, (100 - self.health) // 15)
-            for _ in range(intensity):
+            intensity = max(1, (100 - self.health) // 30)
 
-                # randomize position near the player
-                offset = Vector2(random.uniform(-self.rect.width // 2, self.rect.width // 2),
-                                 random.uniform(self.rect.height // 2, self.rect.height))
-                
-                # smoke/sparks
-                return misc.explosion_effect(self.pos,
-                                      number = 7, 
-                                      min_lifetime=0.2, 
-                                      max_lifetime=0.7, 
-                                      base_colour=random.choice([(120,120,120), (200,200,50), (255,140,0)]))
+            if random.randint(0, max(5, self.health // 4)) == 0:
+                for _ in range(intensity):
+
+                    # smoke/sparks
+                    return misc.explosion_effect(Vector2(self.hitbox_top.x - offset_x, self.hitbox_top.y + 20),
+                                        number = 7, 
+                                        min_lifetime=0.2, 
+                                        max_lifetime=0.7,
+                                        min_angle=230,
+                                        max_angle=310,
+                                        base_colour=random.choice([(63, 63, 63), (207, 195, 40), (255,140,0)]))
         return None
 
     def move(self, dt) -> None:
@@ -127,23 +132,6 @@ class Player(pg.sprite.Sprite):
             else:
                 self.accel_x = 0
 
-        # integrate horizontal velocity
-        self.velocity.x += self.accel_x * dt
-        
-        # if input has flipped drag past zero, zero it out
-        if abs(self.velocity.x) < (self.drag_x * dt):
-            self.velocity.x = 0
-
-        # clamp to max x-axis speed
-        self.velocity.x = max(-self.max_speed_x, min(self.velocity.x, self.max_speed_x))
-
-        # y-axis screen border collision detection
-
-        if (self.pos.y >= GAMEPLAY_HEIGHT and self.accel_y > 0) or (self.pos.y < 0 and self.accel_y < 0):
-            self.velocity.y = 0
-            self.accel_y = 0
-            print("crash!")
-            return
 
         # VERTICAL ACCELERATION
         if keys[pg.K_w]:
@@ -161,6 +149,24 @@ class Player(pg.sprite.Sprite):
 
         if abs(self.velocity.y) < (self.drag_y * dt):
             self.velocity.y = 0
+
+        # integrate horizontal velocity
+        self.velocity.x += self.accel_x * dt
+        
+        # if input has flipped drag past zero, zero it out
+        if abs(self.velocity.x) < (self.drag_x * dt):
+            self.velocity.x = 0
+
+        # clamp to max x-axis speed
+        self.velocity.x = max(-self.max_speed_x, min(self.velocity.x, self.max_speed_x))
+
+        # y-axis screen border collision detection
+
+        if (self.pos.y >= GAMEPLAY_HEIGHT and self.accel_y > 0) or (self.pos.y < 0 and self.accel_y < 0):
+            self.velocity.y = 0
+            self.accel_y = 0
+            print("crash!")
+            return
 
         # clamp to max y-axis speed
         self.velocity.y = max(-self.max_speed_y, min(self.velocity.y, self.max_speed_y))
@@ -184,14 +190,34 @@ class Player(pg.sprite.Sprite):
             # sound
             random_sound = random.choice([sound.PLAYER_FIRE1, sound.PLAYER_FIRE2, sound.PLAYER_FIRE3, sound.PLAYER_FIRE4,])
             random_sound.play()
+        
+    def gets_hit_by(self, source) -> None:
+        """Damages player according to the source of damage.
+        (eg: class Enemy does 20 damage)
+        """
+        if self.state == Player.States.DEAD:
+            return
+
+        if isinstance(source, EnemyBullet):
+            self.health -= 20
+
+        elif isinstance(source, Enemy):
+            self.health -= 100
+
+        print(self.health)
 
     def death(self) -> pg.sprite.Group:
         self.state = Player.States.DEAD
         return misc.explosion_effect(self.pos, 70)
-            
+        
+    def revive(self, offset_x: float) -> pg.sprite.Group:
+        self.accel_x = 0.0
+        self.accel_y = 0.0
+        self.velocity = Vector2(0,0)
+        self.health = 100
+        return misc.explosion_effect(Vector2(self.pos.x + self.rect.width // 2, self.pos.y + self.rect.height // 2), min_lifetime=0.7, max_lifetime=1.2, min_speed=400, max_speed=500, reversed=True)
+    
     def update(self, offset_x) -> None:
-        if self.state == Player.States.DEAD:
-            return
         self.draw_x = int(self.pos.x + offset_x)
         self.rect.x, self.rect.y = int(self.draw_x), int(self.pos.y)
         self.pos.y = max(0, min(GAMEPLAY_HEIGHT - self.rect.height, self.pos.y))
@@ -199,13 +225,19 @@ class Player(pg.sprite.Sprite):
     def draw(self, surface: pg.Surface) -> None:
         if self.state == Player.States.DEAD:
             return
+        
         if self.direction == 0:
             surface.blit(self.image, (self.draw_x, self.rect.y))
+            self.hitbox_top = pg.Rect(self.draw_x + self.rect.width // 7, self.pos.y, self.rect.width // 4, self.rect.height * 2 // 3,)
+            self.hitbox_bottom = pg.Rect(self.draw_x + self.rect.width // 7, self.pos.y + self.rect.height * 2 // 3, self.rect.width * 6 // 7, self.rect.height // 4)
         else:
             self.flipped = pg.transform.flip(self.image, True, False)
             surface.blit(self.flipped, (self.draw_x, self.rect.y))
 
-        #pg.draw.rect(surface, WHITE, self.rect)
+            self.hitbox_top = pg.Rect(self.draw_x + self.rect.width * 6 // 7 - self.rect.width // 4, self.pos.y, self.rect.width // 4, self.rect.height * 2 // 3,)
+            self.hitbox_bottom = pg.Rect(self.draw_x, self.pos.y + self.rect.height * 2 // 3, self.rect.width * 6 // 7, self.rect.height // 4)
+
+        #pg.draw.rect(surface, WHITE, self.hitbox_top)
 
 class PlayerGroup(pg.sprite.GroupSingle):
     """
@@ -218,7 +250,11 @@ class PlayerGroup(pg.sprite.GroupSingle):
         self.score: int = 0
         self.lives: int = 5
 
+        self.lives_image: pg.Surface = pg.image.load(os.path.join("images", "player", "idle.png")).convert_alpha()
+        self.lives_height: int = TOP_WIDGET_HEIGHT // 8
+        self.lives_width: int = int((self.lives_image.get_width() / self.lives_image.get_height()) * self.lives_height)
 
+        self.lives_image = pg.transform.scale(self.lives_image, (self.lives_width, self.lives_height))
 
 class PlayerBullet(object):
     def __init__(self, x: float, y: float, width: int, height: int, angle, speed: int) -> None:
@@ -256,6 +292,7 @@ class EnemyBullet(object):
 
     def draw(self, screen: pg.Surface, offset_x: float):
        screen_x = self.x + offset_x
+       self.rect.x = int(screen_x)
        pg.draw.circle(screen, WHITE, (screen_x, self.y), self.radius)
     
     def update(self) -> None:
@@ -284,7 +321,6 @@ class Enemy(pg.sprite.Sprite):
         self.idle_sprite = pg.image.load(os.path.join("images", "enemies", "mutant.png")).convert_alpha()
 
         self.image = pg.transform.scale(self.idle_sprite, (self.width, self.idle_sprite.get_height() / self.idle_sprite.get_width() * self.width))
-        self.mask = pg.mask.from_surface(self.image)
     
     def death(self) -> pg.sprite.Group:
         self.kill()
