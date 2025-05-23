@@ -377,6 +377,9 @@ class Game(object):
                 if (particle_group := self.player.health_indicator(self.offset.x)):
                     self.particles.append(particle_group)
 
+            if self.player_group.lives <= 0:
+                self.game_over()
+
 
             # Draw screen
             self.draw()
@@ -388,6 +391,19 @@ class Game(object):
             self.dt = clock.tick(FRAMES_PER_SECOND) / 1000
 
         quit()
+
+        
+    def game_over(self) -> None:        
+        game_over: bool = True
+
+        game_over_text: pg.Surface = PRESS_START_FONT.render("GAME OVER", False, WHITE)
+        text_rect: pg.Rect = game_over_text.get_rect()
+        text_rect.center = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
+
+        screen.blit(game_over_text, text_rect)
+
+
+
 
     def generate_humanoids(self) -> None:
         for i in range(self.initial_humanoids):
