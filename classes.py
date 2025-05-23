@@ -228,7 +228,8 @@ class Enemy(pg.sprite.Sprite):
         self.wander_timer = 0.0
         self.chase_probability = 0.6
         self.visible_humanoids: list[Vector2] = []
-        self.scanning = False #todo scan for humanoids only once
+        self.closest_humanoid: Vector2 = Vector2(0, 0)
+        self.scanned = False
 
     def draw(self, screen) -> None:
         pg.draw.rect(screen, GREEN, pg.Rect(self.draw_x, self.pos.y, self.width, self.height))
@@ -237,6 +238,8 @@ class Enemy(pg.sprite.Sprite):
         distance = self.pos.distance_to(player_pos)
         
         if distance < self.chase_distance:
+            
+            self.scanned = False
             
             if random.random() < self.chase_probability:
                                
@@ -271,26 +274,30 @@ class Enemy(pg.sprite.Sprite):
             
         else:
             
-            for humanoid in humanoids:
+            #find the closest humanoid
+            if not self.scanned:
                 
-                distance = self.pos.distance_to(humanoid.pos)
-                
-                if distance < self.chase_distance:
-                    
+                for humanoid in humanoids:
                     self.visible_humanoids.append(humanoid.pos)
-                
-                """ laaaaagss
-            
-                for humanoid in self.visible_humanoids:
-                    closest_humanoid = min(self.visible_humanoids, key=lambda humanid: self.pos.distance_to(humanoid))
-                    direction = (closest_humanoid - self.pos).normalize() if distance != 0 else Vector2(0, 0)
-                    angle = math.atan2(direction.y, direction.x)
-                    move_direction = Vector2(math.cos(angle), math.sin(angle))
-                    self.velocity += (move_direction - self.velocity) * self.acceleration
                     
-                """
-                         
+                self.closest_humanoid = min(self.visible_humanoids, key=lambda x: self.pos.distance_to(x))
+                print(f"closest humanoid: {self.closest_humanoid}")
                 
+                self.scanned = True
+                
+            
+            #move enemy towards closest humanoid
+            direction = (self.closest_humanoid - self.pos).normalize() if distance != 0 else Vector2(0, 0)
+            angle = math.atan2(direction.y, direction.x)
+            move_direction = Vector2(math.cos(angle), math.sin(angle))
+            desired_velocity = move_direction * self.speed
+            self.velocity += (desired_velocity - self.velocity) * self.acceleration
+            
+            if self.velocity.length() > self.max_speed:
+                self.velocity.scale_to_length(self.max_speed)
+                
+            self.pos += self.velocity
+            
         self.draw_x = self.pos.x + offset_x
 
     def fire_bullet(self, player_x: float, player_y: float) -> None:
