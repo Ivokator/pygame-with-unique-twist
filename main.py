@@ -38,7 +38,7 @@ test_space_tiles = math.ceil(SCREEN_WIDTH / (test_space.get_width())) + 1
 
 # Camera look-ahead constants
 MAX_LOOKAHEAD: float = SCREEN_WIDTH * 0.5 # pixels ahead of player
-SMOOTHING: float = 0.03 # 0–1 (higher = snappier)
+SMOOTHING: float = 0.03 # higher = snappier
 EDGE_MARGIN = SCREEN_WIDTH * 0.3 # pixels from left/right edge
 
 def quit() -> None:
@@ -59,7 +59,6 @@ class Game(object):
 
         self.offset: Vector2 = Vector2(0, 0)
             
-        self.background_scroll: float | int = 0  # Background scroll counter
         self.previousoffsets: typing.List[float] = []
             
         self.current_background = test_space
@@ -75,11 +74,19 @@ class Game(object):
 
         self.initial_humanoids: int = 30
 
+        self.game_over_text: pg.Surface = PRESS_START_FONT.render("GAME OVER", False, GREEN)
+        self.game_over_text_rect: pg.Rect = self.game_over_text.get_rect()
+        self.game_over_text_rect.center = (SCREEN_WIDTH // 2, GAMEPLAY_HEIGHT // 2)
+        self.game_over_timer: float = 0.0
+
     def draw(self) -> None:
         
         self.enemy_group.update(self.offset.x, self.gameplay_surface)
         self.humanoid_group.update(self.offset.x, self.gameplay_surface)
         self.player.update(self.offset.x)
+
+        if self.player_group.lives < 1:
+            self.game_over()
 
         # Blit and center surface on the screen
         screen.blit(
@@ -243,14 +250,18 @@ class Game(object):
 
             # if dead, respawn
             if self.player.state == Player.States.DEAD and not currently_reviving:
-                self.player_dead_timer += self.dt
-                if self.player_dead_timer >= 2.0:
-                    self.player.pos = Vector2(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4)
-                    revival_particles = self.player.revive(self.offset.x)
-                    self.particles.append(revival_particles)
+                if self.player_group.lives <= 1:
+                    self.player_group.lives -= 1
+                else:
+                    self.player_dead_timer += self.dt
+                    if self.player_dead_timer >= 2.0:
+                        self.player.pos = Vector2(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4)
+                        revival_particles = self.player.revive(self.offset.x)
+                        self.particles.append(revival_particles)
 
-                    currently_reviving = True
-                    self.player_dead_timer = 0.0
+                        currently_reviving = True
+                        self.player_group.lives -= 1
+                        self.player_dead_timer = 0.0
 
 
             # Event handling
@@ -368,7 +379,6 @@ class Game(object):
                             currently_reviving = False
 
                             self.player.state = Player.States.IDLE
-                            self.player_group.lives -= 1
 
                         del group
             
@@ -376,10 +386,6 @@ class Game(object):
             if particle_timer > 1.0:
                 if (particle_group := self.player.health_indicator(self.offset.x)):
                     self.particles.append(particle_group)
-
-            if self.player_group.lives <= 0:
-                self.game_over()
-
 
             # Draw screen
             self.draw()
@@ -392,18 +398,12 @@ class Game(object):
 
         quit()
 
-        
-    def game_over(self) -> None:        
-        game_over: bool = True
+    def game_over(self) -> None:
+        self.game_over_timer += self.dt
+        self.gameplay_surface.blit(self.game_over_text, self.game_over_text_rect)
 
-        game_over_text: pg.Surface = PRESS_START_FONT.render("GAME OVER", False, WHITE)
-        text_rect: pg.Rect = game_over_text.get_rect()
-        text_rect.center = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
-
-        screen.blit(game_over_text, text_rect)
-
-
-
+        if self.game_over_timer > 3.0:
+            ...
 
     def generate_humanoids(self) -> None:
         for i in range(self.initial_humanoids):
@@ -437,11 +437,8 @@ class Game(object):
         """Returns to the main menu."""
         self.running = False
         pg.display.set_caption(WINDOW_TITLE)
-        menu = pm.Menu('Game Name', SCREEN_WIDTH * 2 // 3, SCREEN_HEIGHT * 2 // 3,
+        menu = pm.Menu('Game Name', SCREEN_WIDTH * 2 // 3, SCREEN_HEIGHT * 1 // 2,
                         theme=mytheme)
-
-        menu.add.text_input('Name: ', default='John Doe', maxchar=10)
-        menu.add.selector('Difficulty: ', [('Hard', 1), ('Easy', 2)])
         menu.add.button('Play', lambda: self.play_game())
         menu.add.button('About', lambda: self.about())
         menu.add.button('Quit', pm.events.EXIT)
@@ -456,9 +453,6 @@ class Game(object):
         menu.add.label('\nPython 3.12.4 - 3.13\nCreated April 2025\nv. DEV\n-----------------------\nCREDITS:\nIvokator\nSkyVojager')
         menu.add.button('Return', lambda: self.main_menu())
         menu.mainloop(screen)
-
-    
-
 
 if __name__ == "__main__":
 

@@ -78,14 +78,21 @@ class Player(pg.sprite.Sprite):
         self.state = Player.States.IDLE
 
         self.idle_sprite = pg.image.load(os.path.join("images", "player", "idle.png")).convert_alpha()
+        self.idle_sprite = pg.transform.scale(self.idle_sprite, (width, self.idle_sprite.get_height() / self.idle_sprite.get_width() * width))
 
         self.move_sprites = [pg.image.load(os.path.join("images", "player", "moving1.png")).convert_alpha(),
                              pg.image.load(os.path.join("images", "player", "moving2.png")).convert_alpha(),
                              pg.image.load(os.path.join("images", "player", "moving3.png")).convert_alpha(),
                              ]
         
+        for i, sprite in enumerate(self.move_sprites):
+            self.move_sprites[i] = pg.transform.scale(sprite, (width, sprite.get_height() / sprite.get_width() * width))
+        
+        self.move_sprites_pointer: int = 0
+        self.move_sprites_timer: float = 0.0
+        
         # current image!
-        self.image = pg.transform.scale(self.idle_sprite, (width, self.idle_sprite.get_height() / self.idle_sprite.get_width() * width))
+        self.image = self.idle_sprite
 
 
     def health_indicator(self, offset_x: float) -> pg.sprite.Group | None:
@@ -113,6 +120,8 @@ class Player(pg.sprite.Sprite):
     def move(self, dt) -> None:
         if self.state == Player.States.DEAD:
             return
+
+        self.move_sprites_timer += dt
 
         keys = pg.key.get_pressed()
 
@@ -221,6 +230,18 @@ class Player(pg.sprite.Sprite):
         self.draw_x = int(self.pos.x + offset_x)
         self.rect.x, self.rect.y = int(self.draw_x), int(self.pos.y)
         self.pos.y = max(0, min(GAMEPLAY_HEIGHT - self.rect.height, self.pos.y))
+
+        # move animation
+        keys = pg.key.get_pressed()
+        if keys[pg.K_a] or keys[pg.K_d]:
+            
+            self.image = self.move_sprites[self.move_sprites_pointer]
+
+            if self.move_sprites_timer > 0.1:
+                self.move_sprites_timer = 0
+                self.move_sprites_pointer = (self.move_sprites_pointer + 1) % (len(self.move_sprites))
+        else:
+            self.image = self.idle_sprite
 
     def draw(self, surface: pg.Surface) -> None:
         if self.state == Player.States.DEAD:
