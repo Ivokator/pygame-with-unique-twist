@@ -10,7 +10,8 @@ WINDOW_TITLE: str = "some game"
 FRAMES_PER_SECOND: int = 100
 RESOLUTION: tuple[int, int] = (1280, 960)
 
-PLAYER_SIZE: int = 30
+PLAYER_WIDTH: int = 100
+PLAYER_HEIGHT: int = 34
 
 SCREEN_WIDTH: int = RESOLUTION[0]
 SCREEN_HEIGHT: int = RESOLUTION[1]
@@ -33,15 +34,19 @@ DARKER_GREY: tuple[int, ...] = (32, 32, 32)
 # SCORE TEXT
 SYSFONT = pg.font.get_default_font()
 DEFAULT_FONT = pg.font.SysFont(SYSFONT, 24)
-PRESS_START_FONT = pg.font.Font(os.path.join("fonts", "PressStart2P-Regular.ttf"), 24)
+PRESS_START_FONT = pg.font.Font(os.path.join("fonts", "PressStart2P-Regular.ttf"), 28)
 
 # Pygame Menu Themes
-mytheme = pm.themes.Theme(title_bar_style=pm.widgets.MENUBAR_STYLE_UNDERLINE_TITLE,
+mytheme = pm.themes.Theme(title_bar_style=pm.widgets.MENUBAR_STYLE_NONE,
                           title_font_color = DARK_GREY,
-                          selection_color = BLACK,
+                          title_font = PRESS_START_FONT,
+                          title_font_size = 50,
+                          title = True,
+
+                          selection_color = DARKER_GREY,
+                          background_color = (0,0,0,0),
                           fps = FRAMES_PER_SECOND,
                           widget_font = PRESS_START_FONT,
-                          title_font = PRESS_START_FONT,
                           widget_font_size = RESOLUTION[0] // 30,
                           )
 
