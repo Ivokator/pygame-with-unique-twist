@@ -299,7 +299,7 @@ class Game(object):
 
             # Draw enemies
             for enemy in self.enemy_group.sprites():
-                enemy.update(self.offset.x, self.player.pos, self.humanoid_group)
+                enemy.update(self.offset.x, self.player.pos, self.humanoid_group.sprites())
 
                 # off-screen culling
                 if enemy.pos.x < SCREEN_WIDTH * 1.2 and enemy.pos.x > 0 - SCREEN_WIDTH * 0.2:
@@ -336,7 +336,7 @@ class Game(object):
                     ebullet.draw(self.surface, self.offset.x)
 
                 # collision detection with player bullets
-                if (collided_bullet :=pg.sprite.spritecollideany(enemy, self.player.bullets)): # type: ignore
+                if (collided_bullet := pg.sprite.spritecollideany(enemy, self.player.bullets)): # type: ignore
                     # hit enemy!
                     self.particles.append(enemy.death())
                     self.player.bullets.remove(collided_bullet)

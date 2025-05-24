@@ -354,17 +354,18 @@ class Enemy(pg.sprite.Sprite):
         self.idle_sprite = pg.image.load(os.path.join("images", "enemies", "mutant.png")).convert_alpha()
 
         self.image = pg.transform.scale(self.idle_sprite, (self.width, self.idle_sprite.get_height() / self.idle_sprite.get_width() * self.width))
-    
-    def death(self) -> pg.sprite.Group:
-        self.kill()
-        return misc.explosion_effect(self.pos, 50, min_lifetime=0.8, max_lifetime=2.0)
-       
+
         self.wander_angle = random.uniform(0, 360)
         self.wander_timer = 0.0
         self.chase_probability = 0.6
         self.visible_humanoids: list[Vector2] = []
         self.closest_humanoid: Vector2 = Vector2(0, 0)
         self.scanned = False
+    
+    def death(self) -> pg.sprite.Group:
+        self.kill()
+        return misc.explosion_effect(self.pos, 50, min_lifetime=0.8, max_lifetime=2.0)
+
 
     def draw(self, screen) -> None:
         pg.draw.rect(screen, GREEN, pg.Rect(self.draw_x, self.pos.y, self.width, self.height))
@@ -443,6 +444,7 @@ class Enemy(pg.sprite.Sprite):
         self.draw_x = self.pos.x + offset_x
 
         self.rect.x = int(self.draw_x)
+        self.rect.y = int(self.pos.y)
     
     def fire_bullet(self, player_x: float, player_y: float) -> None:
         
@@ -562,7 +564,7 @@ class Humanoid(pg.sprite.Sprite):
         self.pos: Vector2 = Vector2(x, y)
 
         self.state: HumanoidState = HumanoidState.IDLE
-        self.speed: int = -0.5
+        self.speed: float = -0.5
 
     def draw(self, screen) -> None:
         pg.draw.rect(screen, DARK_GREY, pg.Rect(self.draw_x, self.pos.y, self.width, self.height))
