@@ -75,7 +75,7 @@ class Game(object):
 
     def draw(self) -> None:
         
-        self.enemy_group.update(self.offset.x, self.gameplay_surface)
+        self.enemy_group.update(self.offset.x, self.player.pos, self.humanoid_group, self.gameplay_surface)
         self.humanoid_group.update(self.offset.x, self.gameplay_surface)
         self.player.update(self.offset.x)
 
@@ -243,17 +243,17 @@ class Game(object):
                 # Spawn no more than 5 enemies at once
                 if len(self.enemy_group.sprites()) < 5:
                     self.enemy_group.add(enemy)
-                else:
+                """else:
                     # Remove the oldest enemy
                     old: pg.sprite.Sprite = self.enemy_group.sprites()[0]
                     old.kill()
-                    del old
+                    del old"""
 
                 time_since_last_enemy = 0
 
             # Draw enemies
             for enemy in self.enemy_group.sprites():
-                enemy.update(self.offset.x)
+                enemy.update(self.offset.x, self.player.pos, self.humanoid_group)
 
                 # off-screen culling
                 if enemy.pos.x < SCREEN_WIDTH * 1.2 and enemy.pos.x > 0 - SCREEN_WIDTH * 0.2:
@@ -312,7 +312,7 @@ class Game(object):
         for i in range(self.initial_humanoids):
             spawn_x: int = random.randint(EDGE_SPAWN_BUFFER - (WORLD_WIDTH//2), (WORLD_WIDTH//2) - EDGE_SPAWN_BUFFER)
             spawn_y: int = GROUND_Y
-            print(f"Humanoid spawned at ({spawn_x}, {spawn_y})")
+            #print(f"Humanoid spawned at ({spawn_x}, {spawn_y})")
             self.humanoid_group.add(Humanoid(spawn_x, spawn_y))
 
         # add to mini_map
@@ -330,7 +330,7 @@ class Game(object):
                 # Fire bullet
                 elif event.key == pg.K_n:
                     self.player.fire_bullet()
-                    print(self.player.pos.x)
+                    #print(self.player.pos.x)
 
                 elif event.key == pg.K_f: # temp explosion key
                     if self.player.state != Player.States.DEAD:

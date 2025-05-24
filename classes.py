@@ -139,6 +139,7 @@ class Player(pg.sprite.Sprite):
         # Create a bullet at the player's position
         # and set its angle and speed
         if self.cooldown_timer > self.bullet_cooldown_ms:
+            
             self.cooldown_timer = 0
             bullet = PlayerBullet(self.rect.x, self.rect.y + (self.rect.height // 2), width=10, height=10, angle = self.direction * -180, speed=30)
             self.bullets.append(bullet)
@@ -208,28 +209,114 @@ class EnemyBullet(object):
         self.x += self.velocity.x
         self.y += self.velocity.y
 
+class EnemyState(Enum):
+    ATTACKING = 1
+    CAPTURING = 2
+
 class Enemy(pg.sprite.Sprite):
     def __init__(self, spawn_x: int, spawn_y: int) -> None:
         super().__init__()
+        self.state = EnemyState.ATTACKING
         self.spawn_x = spawn_x
         self.spawn_y = spawn_y
         self.pos = Vector2(spawn_x, spawn_y)
         self.width = 30
         self.height = 30
-        self.speed = 5
-        
+        self.speed = 1.2
+        self.max_speed = 2.0
+        self.acceleration = 0.10
+        self.velocity = Vector2(0, 0)
+        self.chase_distance = 1000
         self.offset_x = 0
-        
         self.bullets: typing.List[EnemyBullet] = []
-        #print(f"Enemy created at ({self.x}, {self.y})")
-        
+        self.wander_angle = random.uniform(0, 360)
+        self.wander_timer = 0.0
+        self.chase_probability = 0.6
+        self.visible_humanoids: list[Vector2] = []
+        self.closest_humanoid: Vector2 = Vector2(0, 0)
+        self.scanned = False
+
     def draw(self, screen) -> None:
         pg.draw.rect(screen, GREEN, pg.Rect(self.draw_x, self.pos.y, self.width, self.height))
 
-    def update(self, offset_x: float) -> None:
+    def update(self, offset_x: float, player_pos: Vector2, humanoids: list) -> None:
+        distance = self.pos.distance_to(player_pos)
+        
+        if distance < self.chase_distance and self.state != EnemyState.CAPTURING:
+            
+            self.scanned = False
+            
+            if random.random() < self.chase_probability:
+                               
+                direction = (player_pos - self.pos).normalize() if distance != 0 else Vector2(0, 0)
+                self.wander_timer += 1
+                
+                if self.wander_timer > 30:
+                    self.wander_angle = random.uniform(-10, 10)
+                    self.wander_timer = 0
+                    
+                angle = math.atan2(direction.y, direction.x) + math.radians(self.wander_angle)
+                move_direction = Vector2(math.cos(angle), math.sin(angle))
+                
+            else:                
+                self.wander_timer += 1
+                
+                if self.wander_timer > 30:
+                    
+                    self.wander_angle = random.uniform(0, 2 * math.pi)
+                    self.wander_timer = 0
+                    
+                move_direction = Vector2(math.cos(self.wander_angle), math.sin(self.wander_angle))
+                
+            desired_velocity = move_direction * self.speed
+            self.velocity += (desired_velocity - self.velocity) * self.acceleration
+            
+            if self.velocity.length() > self.max_speed:
+                
+                self.velocity.scale_to_length(self.max_speed)
+                
+            self.pos += self.velocity
+            
+        else:
+            
+            #find the closest humanoid
+            if not self.scanned:
+                
+                for humanoid in humanoids:
+                    self.visible_humanoids.append(humanoid.pos)
+                    
+                self.closest_humanoid = min(self.visible_humanoids, key=lambda x: self.pos.distance_to(x))
+                
+                self.scanned = True
+                
+            
+            #move enemy towards closest humanoid
+            direction = (self.closest_humanoid - self.pos).normalize() if distance != 0 else Vector2(0, 0)
+            angle = math.atan2(direction.y, direction.x)
+            move_direction = Vector2(math.cos(angle), math.sin(angle))
+            desired_velocity = move_direction * self.speed
+            self.velocity += (desired_velocity - self.velocity) * self.acceleration
+            
+            if self.velocity.length() > self.max_speed:
+                self.velocity.scale_to_length(self.max_speed)
+                
+            self.pos += self.velocity
+            
+            #update the closest humanoid status to captured when reached
+            if self.pos.distance_to(self.closest_humanoid) < 10:
+                for humanoid in humanoids:
+                    if humanoid.pos == self.closest_humanoid:
+                        humanoid.state = HumanoidState.CAPTURED
+                        self.state = EnemyState.CAPTURING
+                        break
+            
         self.draw_x = self.pos.x + offset_x
-    
+
     def fire_bullet(self, player_x: float, player_y: float) -> None:
+        
+        if self.state == EnemyState.CAPTURING:
+            return
+        
         dx = player_x - self.pos.x
         dy = player_y - self.pos.y
         angle = math.degrees(math.atan2(dy, dx)) + random.randint(-2, 2) # randomize angle
@@ -244,9 +331,9 @@ class EnemyGroup(pg.sprite.Group):
     def __init__(self) -> None:
         super().__init__()
 
-    def update(self, offset_x: float, screen) -> None:
+    def update(self, offset_x: float, player_pos, humanoids_pos, screen) -> None:
         for enemy in self.sprites():
-            enemy.update(offset_x)
+            enemy.update(offset_x, player_pos, humanoids_pos)
             enemy.draw(screen)
 
 
@@ -344,13 +431,17 @@ class Humanoid(pg.sprite.Sprite):
         self.pos: Vector2 = Vector2(x, y)
 
         self.state: HumanoidState = HumanoidState.IDLE
-        self.speed: int = 5
+        self.speed: int = -0.5
 
     def draw(self, screen) -> None:
         pg.draw.rect(screen, DARK_GREY, pg.Rect(self.draw_x, self.pos.y, self.width, self.height))
 
     def update(self, offset_x: float) -> None:
         self.draw_x = self.pos.x + offset_x
+        
+        if self.state == HumanoidState.CAPTURED:
+            self.pos.y += self.speed
+
 
 class HumanoidGroup(pg.sprite.Group):
     def __init__(self) -> None:
