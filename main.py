@@ -1,18 +1,13 @@
-import asyncio
 import math
 import os
 import random
 import sys
-import threading
-import time
 import typing
 
 import pygame as pg # type: ignore
 import pygame_menu as pm
 
-from pygame import Rect
 from pygame.math import Vector2
-#from pygame_widgets.button import ButtonArray # type: ignore
 
 import map
 import misc
@@ -23,6 +18,7 @@ from downgrade_fx import apply_downgrade_effect
 from constants import *
 
 # Initialize
+pg.mixer.pre_init(44100, -16, 16, 512)
 pg.init()
 
 # Screen / Clock
@@ -57,7 +53,15 @@ class Game(object):
         # group containing player
         self.player_group: PlayerGroup = PlayerGroup()
 
+        # Intialize player
+        self.player: Player = Player(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4, PLAYER_WIDTH, PLAYER_HEIGHT)
+        self.player_group.add(self.player)
+
+        self.enemy_group: EnemyGroup = EnemyGroup()
+
+
         self.offset: Vector2 = Vector2(0, 0)
+        self.speed_threshold: float = self.player.max_speed_x * 0.7 # threshold for look-ahead
             
         self.previousoffsets: typing.List[float] = []
             
@@ -73,11 +77,17 @@ class Game(object):
         self.particles: list[pg.sprite.Group] = []
 
         self.initial_humanoids: int = 30
+        self.humanoid_group: HumanoidGroup = HumanoidGroup()
 
         self.game_over_text: pg.Surface = PRESS_START_FONT.render("GAME OVER", False, GREEN)
         self.game_over_text_rect: pg.Rect = self.game_over_text.get_rect()
         self.game_over_text_rect.center = (SCREEN_WIDTH // 2, GAMEPLAY_HEIGHT // 2)
         self.game_over_timer: float = 0.0
+
+
+        self.smart_bomb_text: pg.Surface = PRESS_START_FONT.render("SMART BOMB!", False, WHITE)
+        self.smart_bomb_text_rect: pg.Rect = self.smart_bomb_text.get_rect()
+        self.smart_bomb_text_rect.center = (SCREEN_WIDTH // 2, TOP_WIDGET_HEIGHT // 2)
 
     def draw(self) -> None:
         
@@ -85,7 +95,7 @@ class Game(object):
         self.humanoid_group.update(self.offset.x, self.gameplay_surface)
         self.player.update(self.offset.x)
 
-        if self.player_group.lives < 1:
+        if self.player_group.ships < 0:
             self.game_over()
 
         # Blit and center surface on the screen
@@ -149,17 +159,26 @@ class Game(object):
         self.text_score: pg.Surface = PRESS_START_FONT.render(str(self.player_group.score).zfill(7), False, WHITE)
         screen.blit(self.text_score, (100, TOP_WIDGET_HEIGHT - self.text_score.get_height() - 10))
         
-        # Display lives
-        self.display_lives()
+        # Display ships
+        self.display_ships()
+        self.display_smart_bombs()
 
         self.mini_map.add(*self.enemy_group.sprites())
         self.mini_map.update(self.offset.x)
         
         screen.blit(self.mini_map.surface, ((self.surface.get_width() // 2) - (self.mini_map.surface.get_width() // 2), 0))
 
-    def display_lives(self):
-        for i in range(self.player_group.lives):
-            screen.blit(self.player_group.lives_image, (self.text_score.get_width() + 100 - (i*self.player_group.lives_width), TOP_WIDGET_HEIGHT - self.text_score.get_height() - self.player_group.lives_height - 25))
+    def display_ships(self) -> None:
+        for i in range(self.player_group.ships):
+            screen.blit(self.player_group.lives_image, 
+                        (self.text_score.get_width() + 100 - (i*self.player_group.lives_width), 
+                         TOP_WIDGET_HEIGHT - self.text_score.get_height() - self.player_group.lives_height - self.player.smart_bomb_image.get_height() - 25))
+    
+    def display_smart_bombs(self) -> None:
+        for i in range(self.player.smart_bombs):
+            screen.blit(self.player.smart_bomb_image, 
+                        (self.text_score.get_width() + 115 - (i * self.player_group.lives_width), # lives_width to align with ships
+                         TOP_WIDGET_HEIGHT - self.text_score.get_height() - self.player.smart_bomb_height - 18))
     
     def background(self) -> None:
         # Draw the background
@@ -206,17 +225,10 @@ class Game(object):
             self.previousoffsets.pop(0)
             self.offset_change = self.previousoffsets[1] - self.previousoffsets[0]
 
-
-    def play_game(self) -> None:
+    def play_game(self) -> bool:
         # Game preparation
         pg.display.set_caption(WINDOW_TITLE)
-        self.enemy_group: EnemyGroup = EnemyGroup()
 
-        # Intialize player
-        self.player: Player = Player(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4, PLAYER_WIDTH, PLAYER_HEIGHT)
-        self.player_group.add(self.player)
-
-        self.speed_threshold: float = self.player.max_speed_x * 0.7 # threshold for look-ahead
         self.mini_map.add(self.player)
 
         self.peaks: list[tuple[int, int]] = map.generate_peaks(WORLD_WIDTH)
@@ -230,8 +242,8 @@ class Game(object):
         revival_particles: pg.sprite.Group | None = None
         currently_reviving: bool = False
 
-        self.humanoid_group: HumanoidGroup = HumanoidGroup()
         self.generate_humanoids()
+        self.spawn_enemies(10)
 
         self.running = True
 
@@ -250,8 +262,8 @@ class Game(object):
 
             # if dead, respawn
             if self.player.state == Player.States.DEAD and not currently_reviving:
-                if self.player_group.lives <= 1:
-                    self.player_group.lives -= 1
+                if self.player_group.ships < 1:
+                    self.player_group.ships -= 1
                 else:
                     self.player_dead_timer += self.dt
                     if self.player_dead_timer >= 2.0:
@@ -260,7 +272,7 @@ class Game(object):
                         self.particles.append(revival_particles)
 
                         currently_reviving = True
-                        self.player_group.lives -= 1
+                        self.player_group.ships -= 1
                         self.player_dead_timer = 0.0
 
 
@@ -268,10 +280,24 @@ class Game(object):
             self.player.cooldown_timer += clock.get_time()
             self.event()
 
+            # if player successfully killed all enemies, exit out of function
+            if not self.enemy_group:
+                return True
+
+            # Draw player
+            if self.player.health <= 0 and self.player.state != Player.States.DEAD:
+                self.player.state = Player.States.DEAD
+                self.screen_flash(1, [(255, 255, 255, 50)], 0.06, 0.02, False)
+                self.particles.append(self.player.death())
+                
+            self.player.draw(self.surface)
+            self.player.move(self.dt)
+
             # Draw player bullets
             for bullet in self.player.bullets:
+
                 # off-screen culling
-                if bullet.x < SCREEN_WIDTH * -2 or bullet.x > SCREEN_WIDTH * 2:
+                if SCREEN_WIDTH * 1.2 < bullet.x > SCREEN_WIDTH * -0.2:
                     self.player.bullets.remove(bullet)
                     del bullet
                     continue
@@ -279,83 +305,13 @@ class Game(object):
                 bullet.update()
                 bullet.draw(self.surface)
 
-            # Spawn enemies
-            time_since_last_enemy += self.dt
-
-            if time_since_last_enemy >= 2:
-                # Spawn enemy
-                enemy = Enemy(random.randint(-SCREEN_WIDTH, SCREEN_WIDTH*2), random.randint(TOP_WIDGET_HEIGHT, GAMEPLAY_HEIGHT))
-
-                # Spawn no more than 5 enemies at once
-                if len(self.enemy_group.sprites()) < 5:
-                    self.enemy_group.add(enemy)
-                """else:
-                    # Remove the oldest enemy
-                    old: pg.sprite.Sprite = self.enemy_group.sprites()[0]
-                    old.kill()
-                    del old"""
-
-                time_since_last_enemy = 0
-
-            # Draw enemies
-            for enemy in self.enemy_group.sprites():
-                enemy.update(self.offset.x, self.player.pos, self.humanoid_group.sprites())
-
-                # off-screen culling
-                if enemy.pos.x < SCREEN_WIDTH * 1.2 and enemy.pos.x > 0 - SCREEN_WIDTH * 0.2:
-                    enemy.draw(self.surface)
-
-                # enemy collision detection w/ player
-                if self.player.hitbox_top.colliderect(enemy.rect) or self.player.hitbox_bottom.colliderect(enemy.rect):
-                    if self.player.state != Player.States.DEAD:
-                        self.player.gets_hit_by(enemy)
-
-                for ebullet in enemy.bullets:
-                    # enemy bullet collision detection w/ player
-                    if self.player.hitbox_top.colliderect(ebullet.rect) or self.player.hitbox_bottom.colliderect(ebullet.rect):
-                        if self.player.state != Player.States.DEAD:
-                            self.player.gets_hit_by(ebullet)
-                            self.particles.append(misc.explosion_effect(Vector2(ebullet.x, ebullet.y),
-                                                                        number=10,
-                                                                        min_lifetime=0.2,
-                                                                        max_lifetime=0.35,
-                                                                        min_speed=200,
-                                                                        ))
-
-                            enemy.bullets.remove(ebullet)
-                            del ebullet
-                            continue
-
-                    # off-screen culling
-                    if ebullet.x + self.offset.x < SCREEN_WIDTH * -0.2 or ebullet.x + self.offset.x > SCREEN_WIDTH * 1.2 or ebullet.y > SCREEN_HEIGHT or ebullet.y < 0:
-                        enemy.bullets.remove(ebullet)
-                        del ebullet
-                        continue
-
-                    ebullet.update()
-                    ebullet.draw(self.surface, self.offset.x)
-
-                # collision detection with player bullets
-                if (collided_bullet := pg.sprite.spritecollideany(enemy, self.player.bullets)): # type: ignore
-                    # hit enemy!
-                    self.particles.append(enemy.death())
-                    self.player.bullets.remove(collided_bullet)
-                    del enemy
-                    self.player_group.score += 50
+            self.update_and_draw_enemy_related()
 
             test_spam_enemy_fire_time += self.dt
             if test_spam_enemy_fire_time > 1.3:
                 for enemy in self.enemy_group.sprites():
                     enemy.fire_bullet(self.player.pos.x, self.player.pos.y)
                     test_spam_enemy_fire_time = 0.0
-            
-            # Draw player
-            if self.player.health <= 0 and self.player.state != Player.States.DEAD:
-                self.player.state = Player.States.DEAD
-                self.particles.append(self.player.death())
-
-            self.player.draw(self.surface)
-            self.player.move(self.dt)
             
             # Clamp player position
             self.player.rect.clamp_ip(self.surface.get_rect())
@@ -396,14 +352,73 @@ class Game(object):
             # Update delta time
             self.dt = clock.tick(FRAMES_PER_SECOND) / 1000
 
-        quit()
+        if not self.enemy_group:
+            return True
+        else:
+            return False
+
+    def spawn_enemies(self, num: int) -> None:
+        """Spawn given number of enemies."""
+
+        for _ in range(num):
+            enemy = Enemy(random.randint(-SCREEN_WIDTH, SCREEN_WIDTH*2), random.randint(TOP_WIDGET_HEIGHT, GAMEPLAY_HEIGHT))
+            self.enemy_group.add(enemy)
+
+    def update_and_draw_enemy_related(self) -> None:
+        # Draw enemies
+        for enemy in self.enemy_group.sprites():
+            enemy.update(self.offset.x, self.player.pos, self.humanoid_group.sprites())
+
+            # off-screen culling
+            if -(SCREEN_WIDTH * 0.2) < enemy.pos.x < SCREEN_WIDTH * 1.2:
+                enemy.draw(self.surface)
+
+            # enemy collision detection w/ player
+            if self.player.hitbox_top.colliderect(enemy.rect) or self.player.hitbox_bottom.colliderect(enemy.rect):
+                if self.player.state != Player.States.DEAD:
+                    self.player.gets_hit_by(enemy)
+
+            # collision detection with player bullets
+            if (collided_bullet := pg.sprite.spritecollideany(enemy, self.player.bullets)): # type: ignore
+                # hit enemy!
+                self.particles.append(enemy.death())
+                self.player.bullets.remove(collided_bullet)
+                del enemy
+                self.player_group.score += 50
+
+        for ebullet in self.enemy_group.bullets:
+                # enemy bullet collision detection w/ player
+                if self.player.hitbox_top.colliderect(ebullet.rect) or self.player.hitbox_bottom.colliderect(ebullet.rect):
+                    if self.player.state != Player.States.DEAD:
+                        self.player.gets_hit_by(ebullet)
+                        self.particles.append(misc.explosion_effect(Vector2(ebullet.x, ebullet.y),
+                                                                    number=10,
+                                                                    min_lifetime=0.2,
+                                                                    max_lifetime=0.35,
+                                                                    min_speed=200,
+                                                                    ))
+
+                        self.enemy_group.bullets.remove(ebullet)
+                        del ebullet
+                        continue
+
+                # off-screen culling
+                if ebullet.x + self.offset.x < SCREEN_WIDTH * -0.2 or ebullet.x + self.offset.x > SCREEN_WIDTH * 1.2 or ebullet.y > SCREEN_HEIGHT or ebullet.y < 0:
+                    self.enemy_group.bullets.remove(ebullet)
+                    del ebullet
+                    continue
+
+                ebullet.update()
+                ebullet.draw(self.surface, self.offset.x)
+            
+
 
     def game_over(self) -> None:
         self.game_over_timer += self.dt
         self.gameplay_surface.blit(self.game_over_text, self.game_over_text_rect)
 
         if self.game_over_timer > 3.0:
-            ...
+            self.main_menu()
 
     def generate_humanoids(self) -> None:
         for i in range(self.initial_humanoids):
@@ -415,23 +430,129 @@ class Game(object):
         # add to mini_map
         self.mini_map.add(self.humanoid_group.sprites())
 
+    def smart_bomb(self) -> None:
+        """Uses a smart bomb, if possible.
+        
+        A smart bomb kills all enemies (and bullets) visible on screen.
+        """
+        if self.player.smart_bombs <= 0:
+            return
+
+        self.player.smart_bombs -= 1
+
+        enemies_on_screen = [enemy for enemy in self.enemy_group.sprites() if 0 < enemy.pos.x + self.offset.x < SCREEN_WIDTH]
+        bullets_on_screen = [bullet for bullet in self.enemy_group.bullets if 0 < bullet.x + self.offset.x < SCREEN_WIDTH]
+
+        for enemy in enemies_on_screen:
+            self.particles.append(enemy.death(sound_on=False))
+            enemy.kill()
+            del enemy
+        for bullet in bullets_on_screen:
+            self.enemy_group.bullets.remove(bullet)
+
+        # flash effect
+        self.screen_flash(3, [(255, 0, 0, 100), (0, 255, 0, 100), (0, 0, 255, 100)], 0.06, 0.03)
+        
+    def screen_flash(self, num: int, colours: list[tuple[int, int, int, int]], flash_seconds: float, blank_seconds: float, show_smart_bomb_text: bool = True) -> None:
+        """Flashes the screen with colour, giving a dramatic effect.
+        
+        Arguments:
+            num (int): Number of individual flashes to show on screen.
+            colours (list[tuple[int, int, int, int]]): List of RGBA tuples to flash the screen with. Flashes colours in order.
+                - If len(colours) > num, extra colours are ignored.
+                - If len(colours) < num, colours are cycled through.
+                - Ill-advised to pass fully opaque colours
+            flash_seconds (float): Duration for each colour to flash at a time.
+            blank_seconds (float): Duration between flashes of colour of no flash.
+            show_smart_bomb_text (bool): Show "SMART BOMB!" on screen (only applicable for smart bomb usage).
+        Example:
+            Flashes the screen red, green, and blue for 0.5 seconds each, with 0.2 seconds of no flash in between.
+            .. code-block:: python
+                screen_flash(3, [(255, 0, 0, 255), (0, 255, 0, 255), (0, 0, 255, 255)], 0.5, 0.2)
+            
+        """
+        
+        for i in range(num):
+            colour = colours[i % len(colours)]
+            original_surface = self.gameplay_surface.copy()
+
+            flash_overlay = pg.Surface((screen.get_width(), screen.get_height()-TOP_WIDGET_HEIGHT), pg.SRCALPHA)
+            flash_overlay.fill(colour)
+
+            screen.blit(original_surface, (0, TOP_WIDGET_HEIGHT))
+            self.render_top_widget()
+            screen.blit(flash_overlay, (0, TOP_WIDGET_HEIGHT))
+            if show_smart_bomb_text:
+                self.gameplay_surface.blit(self.smart_bomb_text, self.smart_bomb_text_rect)
+
+            pg.display.flip()
+
+            pg.time.delay(int(flash_seconds * 1000))
+
+            screen.blit(original_surface, (0, TOP_WIDGET_HEIGHT))
+            if show_smart_bomb_text:
+                self.gameplay_surface.blit(self.smart_bomb_text, self.smart_bomb_text_rect)
+
+            pg.display.flip()
+            
+            pg.time.delay(int(blank_seconds * 1000))
+
     def event(self) -> None:
         """Handles events."""
         for event in pg.event.get():
             if event.type == pg.QUIT:
-                self.running = False
+                quit()
             elif event.type == pg.KEYDOWN:
-                if event.key == pg.K_ESCAPE:
-                    self.running = False
-
+                    
                 # Fire bullet
-                elif event.key == pg.K_n:
+                if event.key == pg.K_SPACE:
                     self.player.fire_bullet()
-                    #print(self.player.pos.x)
 
-                elif event.key == pg.K_f: # temp explosion key
+                elif event.key == pg.K_p:
+                    self.smart_bomb()
+
+                elif event.key == pg.K_F1: # self-destruct
                     if self.player.state != Player.States.DEAD:
                         self.particles.append(self.player.death())
+
+    def game_loop(self) -> None:
+        self.current_wave: int = 1
+        while True:
+            self.wave_screen()
+            if self.play_game():
+                self.current_wave += 1
+    
+    def wave_screen(self) -> None:
+        """Displays attack wave in big text
+            Starts next round
+        
+        """
+        running: bool = True
+        wait_counter: float = 0.0
+
+        while running:
+            for event in pg.event.get():
+                if event.type == pg.QUIT:
+                    running = False
+            
+            self.surface.fill(BLACK)
+            wave_text: pg.Surface = PRESS_START_FONT.render(f"ATTACK WAVE {self.current_wave}", False, WHITE)
+            wave_text_rect: pg.Rect = wave_text.get_rect()
+            wave_text_rect.center = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - (wave_text_rect.height * 2))
+            self.surface.blit(wave_text, wave_text_rect)
+
+            wait_counter += self.dt
+
+            if wait_counter > 3.0:
+                running = False
+                self.enemy_group.empty()
+                self.humanoid_group.empty()
+                return
+
+            screen.blit(self.surface, (0, 0))
+
+            pg.display.flip()
+            self.dt = clock.tick(FRAMES_PER_SECOND) / 1000
 
     def main_menu(self) -> None:
         """Returns to the main menu."""
@@ -439,7 +560,7 @@ class Game(object):
         pg.display.set_caption(WINDOW_TITLE)
         menu = pm.Menu('Game Name', SCREEN_WIDTH * 2 // 3, SCREEN_HEIGHT * 1 // 2,
                         theme=mytheme)
-        menu.add.button('Play', lambda: self.play_game())
+        menu.add.button('Play', lambda: self.game_loop())
         menu.add.button('About', lambda: self.about())
         menu.add.button('Quit', pm.events.EXIT)
 
@@ -450,11 +571,14 @@ class Game(object):
 
         menu = pm.Menu('About', SCREEN_WIDTH * 2 // 3, SCREEN_HEIGHT * 2 // 3,
                         theme=mytheme)
-        menu.add.label('\nPython 3.12.4 - 3.13\nCreated April 2025\nv. DEV\n-----------------------\nCREDITS:\nIvokator\nSkyVojager')
+        menu.add.label('\nPython 3.11.9 - 3.13\nCreated April 2025\nv. DEV\n-----------------------\nCREDITS:\nIvokator\nSkyVojager')
         menu.add.button('Return', lambda: self.main_menu())
         menu.mainloop(screen)
 
-if __name__ == "__main__":
 
+
+
+
+if __name__ == "__main__":
     game = Game()
     game.main_menu()

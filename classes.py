@@ -48,6 +48,7 @@ class Player(pg.sprite.Sprite):
         self.pos: Vector2 = Vector2(x, y)
 
         self.health: int = 100
+        self.smart_bombs: int = 3
 
         # Physics parameters
         self.velocity: Vector2 = Vector2(0, 0)
@@ -66,7 +67,7 @@ class Player(pg.sprite.Sprite):
         self.direction = 0  # left:0, right:1
 
         self.bullets: typing.List[PlayerBullet] = []
-        self.bullet_cooldown_ms: float = 50
+        self.bullet_cooldown_ms: float = 100
         self.cooldown_timer: int = 0
 
         self.lookahead_compensation: float = 0.0
@@ -93,6 +94,12 @@ class Player(pg.sprite.Sprite):
         
         # current image!
         self.image = self.idle_sprite
+        self.smart_bomb_image = pg.image.load(os.path.join("images", "player", "smart_bomb.png")).convert_alpha()
+
+        self.smart_bomb_height: int = TOP_WIDGET_HEIGHT // 8
+        self.smart_bomb_width: int = int((self.smart_bomb_image.get_width() / self.smart_bomb_image.get_height()) * self.smart_bomb_height)
+
+        self.smart_bomb_image = pg.transform.scale(self.smart_bomb_image, (self.smart_bomb_width, self.smart_bomb_height))
 
 
     def health_indicator(self, offset_x: float) -> pg.sprite.Group | None:
@@ -232,17 +239,24 @@ class Player(pg.sprite.Sprite):
         self.rect.x, self.rect.y = int(self.draw_x), int(self.pos.y)
         self.pos.y = max(0, min(GAMEPLAY_HEIGHT - self.rect.height, self.pos.y))
 
-        # move animation
+        # move animation / thruster sound effect
         keys = pg.key.get_pressed()
         if keys[pg.K_a] or keys[pg.K_d]:
             
             self.image = self.move_sprites[self.move_sprites_pointer]
-
+            
             if self.move_sprites_timer > 0.1:
                 self.move_sprites_timer = 0
                 self.move_sprites_pointer = (self.move_sprites_pointer + 1) % (len(self.move_sprites))
+
+            if not pg.mixer.music.get_busy():
+                
+                pg.mixer.music.play(loops=-1, start=random.uniform(0,7), fade_ms=50) # play thruster sound effect
+
         else:
             self.image = self.idle_sprite
+            #pg.mixer.music.stop() # stop thruster sound effect
+            pg.mixer.music.fadeout(50)
 
     def draw(self, surface: pg.Surface) -> None:
         if self.state == Player.States.DEAD:
@@ -265,12 +279,12 @@ class PlayerGroup(pg.sprite.GroupSingle):
     """
     A sprite group that manages persistent player statistics such as points.
     Unlike the Player class (representing the player's ship, which is reloaded or reset each round),
-    PlayerGroup is intended to track stats that persist across rounds, such as score, lives, or achievements.
+    PlayerGroup is intended to track stats that persist across rounds, such as score, ships, or achievements.
     """
     def __init__(self) -> None:
         super().__init__()
         self.score: int = 0
-        self.lives: int = 5
+        self.ships: int = 5
 
         self.lives_image: pg.Surface = pg.image.load(os.path.join("images", "player", "idle.png")).convert_alpha()
         self.lives_height: int = TOP_WIDGET_HEIGHT // 8
@@ -336,8 +350,8 @@ class Enemy(pg.sprite.Sprite):
         self.spawn_x = spawn_x
         self.spawn_y = spawn_y
         self.pos = Vector2(spawn_x, spawn_y)
-        self.width = 30
-        self.height = 30
+        self.width = 50
+        self.height = 50
         
         self.rect: pg.Rect = pg.Rect(spawn_x, spawn_y, self.width, self.height)
 
@@ -351,8 +365,7 @@ class Enemy(pg.sprite.Sprite):
         self.bullets: typing.List[EnemyBullet] = []
 
         #print(f"Enemy created at ({self.x}, {self.y})")
-        self.idle_sprite = pg.image.load(os.path.join("images", "enemies", "mutant.png")).convert_alpha()
-
+        self.idle_sprite = pg.image.load(os.path.join("images", "enemies", "lander.png")).convert_alpha()
         self.image = pg.transform.scale(self.idle_sprite, (self.width, self.idle_sprite.get_height() / self.idle_sprite.get_width() * self.width))
 
         self.wander_angle = random.uniform(0, 360)
@@ -362,13 +375,23 @@ class Enemy(pg.sprite.Sprite):
         self.closest_humanoid: Vector2 = Vector2(0, 0)
         self.scanned = False
     
-    def death(self) -> pg.sprite.Group:
+    def death(self, sound_on: bool = True) -> pg.sprite.Group:
+        if sound_on:
+            random_sound: pg.mixer.Sound = random.choice([sound.ENEMY_EXPLOSION1, sound.ENEMY_EXPLOSION2, sound.ENEMY_EXPLOSION3, sound.ENEMY_EXPLOSION4, sound.ENEMY_EXPLOSION5])
+            for i in range(1,6):
+                if not pg.mixer.Channel(i).get_busy():
+                    print(f"Channel {i}: {random_sound}")
+                    pg.mixer.Channel(i).play(random_sound, maxtime=1800)
+                    break
+
         self.kill()
         return misc.explosion_effect(self.pos, 50, min_lifetime=0.8, max_lifetime=2.0)
 
 
-    def draw(self, screen) -> None:
-        pg.draw.rect(screen, GREEN, pg.Rect(self.draw_x, self.pos.y, self.width, self.height))
+    def draw(self, surface) -> None:
+        surface.blit(self.image, (self.draw_x, self.rect.y))
+
+        #pg.draw.rect(surface, GREEN, pg.Rect(self.draw_x, self.pos.y, self.width, self.height))
 
     def update(self, offset_x: float, player_pos: Vector2, humanoids: list) -> None:
         distance = self.pos.distance_to(player_pos)
@@ -464,9 +487,13 @@ class Enemy(pg.sprite.Sprite):
 class EnemyGroup(pg.sprite.Group):
     def __init__(self) -> None:
         super().__init__()
+        self.bullets: typing.List[EnemyBullet] = []
 
     def update(self, offset_x: float, player_pos, humanoids_pos, screen) -> None:
         for enemy in self.sprites():
+            self.bullets += enemy.bullets
+            enemy.bullets.clear()
+
             enemy.update(offset_x, player_pos, humanoids_pos)
             enemy.draw(screen)
 
@@ -503,16 +530,16 @@ class MiniMap(pg.sprite.Group):
 
         for sprite in self.sprites():
             norm_x = (sprite.pos.x + offset_x) / self.world_width
-            icon_x = norm_x * self.surface_width - (self.icon_size / 2) + ((self.surface_width - self.visible_area_width) / 2)
+            icon_x = norm_x * self.surface_width - (self.icon_size / 2) + (self.surface_width / 2) - (self.visible_area_width * 3 / 4) # somehow multiplying by 3/4 is best
 
             icon_y: float = (sprite.pos.y / GAMEPLAY_HEIGHT) * self.surface_height - (self.icon_size / 2)
 
             # avoids drawing icons that are outside of the surface and cannot be seen
-            if icon_x > self.surface_width or icon_x < -self.icon_size:
-                continue
+            #if icon_x > self.surface_width or icon_x < -self.icon_size:
+            #    continue
 
             # clamp inside minimap
-            #icon_x = max(0, min(self.surface_width  - self.icon_size, icon_x))
+            icon_x = max(0, min(self.surface_width  - self.icon_size, icon_x))
             icon_y = max(0, min(self.surface_height - self.icon_size, icon_y))
 
             if isinstance(sprite, Humanoid):
