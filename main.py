@@ -27,7 +27,7 @@ screen: pg.Surface = pg.display.set_mode(RESOLUTION, pg.RESIZABLE | pg.SCALED, v
 clock: pg.time.Clock = pg.time.Clock()
 
 # Images
-test_space = pg.image.load(os.path.join("./images/background","test_space.png")).convert()
+test_space = pg.image.load(os.path.join("./images/background","black_rectangle.png")).convert()
 
 # Background tiling
 test_space_tiles = math.ceil(SCREEN_WIDTH / (test_space.get_width())) + 1
@@ -190,14 +190,12 @@ class Game(object):
         background_height = self.current_background.get_height()
 
         # Transform background to right size
-        pg.transform.scale(self.current_background, (surface_width, surface_height))
-
-        scaled_background = pg.transform.scale(self.current_background, (background_width, surface_height))
+        scaled_background = pg.transform.scale(self.current_background, (background_width*1.5, background_height*1.5))
 
         # Scroll background
         for i in range(-1, test_space_tiles + 1):
             self.surface.blit(scaled_background, 
-            (self.offset.x % background_width + i * background_width, 0))
+            (self.offset.x % background_width + i * background_width, 50))
 
     def _screen_rescale(self) -> None:
         pg.transform.scale(
