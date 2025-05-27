@@ -241,7 +241,7 @@ class Game(object):
         currently_reviving: bool = False
 
         self.generate_humanoids()
-        self.spawn_enemies(10)
+        self.spawn_enemies(min(self.num_of_enemies, 30))
 
         self.running = True
 
@@ -272,7 +272,6 @@ class Game(object):
                         currently_reviving = True
                         self.player_group.ships -= 1
                         self.player_dead_timer = 0.0
-
 
             # Event handling
             self.player.cooldown_timer += clock.get_time()
@@ -515,10 +514,12 @@ class Game(object):
 
     def game_loop(self) -> None:
         self.current_wave: int = 1
+        self.num_of_enemies: int = 10
         while True:
             self.wave_screen()
             if self.play_game():
                 self.current_wave += 1
+                self.num_of_enemies += 5
     
     def wave_screen(self) -> None:
         """Displays attack wave in big text
@@ -556,12 +557,25 @@ class Game(object):
         """Returns to the main menu."""
         self.running = False
         pg.display.set_caption(WINDOW_TITLE)
-        menu = pm.Menu('Game Name', SCREEN_WIDTH * 2 // 3, SCREEN_HEIGHT * 1 // 2,
+        menu = pm.Menu('Defender Remake', SCREEN_WIDTH * 2 // 3, SCREEN_HEIGHT * 1 // 2,
                         theme=mytheme)
         menu.add.button('Play', lambda: self.game_loop())
+        menu.add.button('Controls', lambda: self.controls())
         menu.add.button('About', lambda: self.about())
         menu.add.button('Quit', pm.events.EXIT)
 
+        menu.mainloop(screen)
+
+    def controls(self) -> None:
+        """Shows game controls."""
+        menu = pm.Menu('Controls', SCREEN_WIDTH * 2 // 3, SCREEN_HEIGHT * 2 // 3,
+                        theme=mytheme)
+        menu.add.label("""
+Move: WASD
+Shoot: Space
+Smart Bomb: P
+""")
+        menu.add.button('Return', lambda: self.main_menu())
         menu.mainloop(screen)
     
     def about(self) -> None:
