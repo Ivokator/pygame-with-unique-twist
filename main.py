@@ -419,6 +419,10 @@ class Game(object):
             if self.player.hitbox_top.colliderect(enemy.rect) or self.player.hitbox_bottom.colliderect(enemy.rect):
                 if self.player.state != Player.States.DEAD:
                     self.player.gets_hit_by(enemy)
+                    # Enemy dies on collision with player
+                    self.particles.append(enemy.death())
+                    enemy.kill()
+                    continue
 
             # collision detection with player bullets
             if (collided_bullet := pg.sprite.spritecollideany(enemy, self.player.bullets)): # type: ignore
