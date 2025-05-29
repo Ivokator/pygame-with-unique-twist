@@ -101,13 +101,16 @@ class Player(pg.sprite.Sprite):
 
         self.smart_bomb_image = pg.transform.scale(self.smart_bomb_image, (self.smart_bomb_width, self.smart_bomb_height))
 
+        self.is_reviving: bool = False
+        self._revive_timer: float = 0.0
+        self.REVIVE_DURATION: float = 1.0  # seconds
+
 
     def health_indicator(self, offset_x: float) -> pg.sprite.Group | None:
         if self.state == Player.States.DEAD:
             return None
         
         # emit smoke/sparks based on health
-        # avoids having unneeded hp green bar
         if self.health < 100:
             intensity = max(1, (100 - self.health) // 30)
 
@@ -147,7 +150,6 @@ class Player(pg.sprite.Sprite):
                 self.accel_x = self.drag_x
             else:
                 self.accel_x = 0
-
 
         # VERTICAL ACCELERATION
         if keys[pg.K_w]:
@@ -255,7 +257,6 @@ class Player(pg.sprite.Sprite):
 
         else:
             self.image = self.idle_sprite
-            #pg.mixer.music.stop() # stop thruster sound effect
             pg.mixer.music.fadeout(50)
 
     def draw(self, surface: pg.Surface) -> None:
@@ -429,7 +430,7 @@ class Enemy(pg.sprite.Sprite):
             self.pos += self.velocity
             if self.pos.distance_to(self.closest_humanoid) < 10 and self.captured_humanoid is None:
                 for humanoid in humanoids_pos:
-                    if humanoid.pos == self.closest_humanoid and humanoid.state != HumanoidState.CAPTURED: #im so sorry for this mess, im just too lazy to write comments
+                    if humanoid.pos == self.closest_humanoid and humanoid.state != HumanoidState.CAPTURED:
                         humanoid.state = HumanoidState.CAPTURED
                         self.captured_humanoid = humanoid
                         break
@@ -437,13 +438,15 @@ class Enemy(pg.sprite.Sprite):
                 if self.captured_humanoid is not None:
                     self.captured_humanoid.state = HumanoidState.FALLING
                     self.captured_humanoid = None
+                if hasattr(self, "group") and self.group is not None:
+                    self.group.add_mutant(self.pos.x, 0)
                 self.kill()
         self.draw_x = self.pos.x + offset_x
         self.rect.x = int(self.draw_x)
         self.rect.y = int(self.pos.y)
 
     def fire_bullet(self, player_x: float, player_y: float) -> None:
-        if self.state == EnemyState.CAPTURING:
+        if getattr(self, "state", None) == EnemyState.CAPTURING:
             return
         dx = player_x - self.pos.x
         dy = player_y - self.pos.y
@@ -453,6 +456,42 @@ class Enemy(pg.sprite.Sprite):
         bullet = EnemyBullet(spawn_x, spawn_y, radius=5, speed=6, angle=angle)
         self.bullets.append(bullet)
 
+class Mutant(Enemy):
+    def __init__(self, spawn_x: int, spawn_y: int) -> None:
+        super().__init__(spawn_x, spawn_y)
+        self.speed = 4.0
+        self.max_speed = 7.0
+        self.acceleration = 0.25
+        self.width = 40
+        self.height = 40
+        self.rect = pg.Rect(spawn_x, spawn_y, self.width, self.height)
+        self.idle_sprite = pg.image.load(os.path.join("images", "enemies", "mutant.png")).convert_alpha() \
+            if os.path.exists(os.path.join("images", "enemies", "mutant.png")) \
+            else pg.Surface((self.width, self.height))
+        self.image = pg.transform.scale(self.idle_sprite, (self.width, self.idle_sprite.get_height() / self.idle_sprite.get_width() * self.width))
+        self.chase_distance = 99999
+        self.captured_humanoid = None
+
+    def update(self, offset_x: float, player, humanoids_pos, screen) -> None:
+        if hasattr(player, "state") and getattr(player, "state", None) == Player.States.DEAD:
+            self.draw_x = self.pos.x + offset_x
+            self.rect.x = int(self.draw_x)
+            self.rect.y = int(self.pos.y)
+            return
+        player_pos = player.pos
+        direction = (player_pos - self.pos).normalize() if player_pos != self.pos else Vector2(0, 0)
+        desired_velocity = direction * self.speed
+        self.velocity += (desired_velocity - self.velocity) * self.acceleration
+        if self.velocity.length() > self.max_speed:
+            self.velocity.scale_to_length(self.max_speed)
+        self.pos += self.velocity
+        self.draw_x = self.pos.x + offset_x
+        self.rect.x = int(self.draw_x)
+        self.rect.y = int(self.pos.y)
+
+    def fire_bullet(self, player_x: float, player_y: float) -> None:
+        return
+
 class EnemyGroup(pg.sprite.Group):
     def __init__(self) -> None:
         super().__init__()
@@ -460,6 +499,16 @@ class EnemyGroup(pg.sprite.Group):
         self.capturing_limit: int = 2
         self.capturing_timer: float = 0.0
         self.capturing_interval: float = 3.0
+
+    def add(self, *sprites) -> None:
+        super().add(*sprites)
+        for sprite in sprites:
+            if isinstance(sprite, (Enemy, Mutant)):
+                sprite.group = self
+
+    def add_mutant(self, x: float, y: float) -> None:
+        mutant = Mutant(int(x), int(y))
+        self.add(mutant)
 
     def update(self, offset_x: float, player, humanoids_pos, screen) -> None:
         dt = pg.time.get_ticks() / 1000
@@ -479,8 +528,9 @@ class EnemyGroup(pg.sprite.Group):
                 chosen.scanned = True
                 self.capturing_timer = 0.0
         for enemy in self.sprites():
-            self.bullets += enemy.bullets
-            enemy.bullets.clear()
+            self.bullets += getattr(enemy, "bullets", [])
+            if hasattr(enemy, "bullets"):
+                enemy.bullets.clear()
             enemy.update(offset_x, player, humanoids_pos, screen)
             enemy.draw(screen)
 
