@@ -460,6 +460,7 @@ class Enemy(pg.sprite.Sprite):
             if self.pos.y + self.height < 0:
                 if self.captured_humanoid is not None:
                     self.captured_humanoid.state = HumanoidState.FALLING
+                    self.captured_humanoid.state = HumanoidState.KILLED
                     self.captured_humanoid = None
                 if hasattr(self, "group") and self.group is not None:
                     self.group.add_mutant(self.pos.x, 0)
@@ -640,6 +641,7 @@ class HumanoidState(Enum):
     RESCUED = 3
     FALLING = 4
     PANICKING = 5
+    KILLED = 6
 
 class Humanoid(pg.sprite.Sprite):
     def __init__(self, x: int, y: int) -> None:
@@ -666,6 +668,8 @@ class Humanoid(pg.sprite.Sprite):
             if player is None or getattr(player, "state", None) == Player.States.DEAD:
                 return
             self.pos.y += self.speed
+            
+        
         elif self.state == HumanoidState.FALLING:
             self.pos.y += self.fall_speed
             self.fall_time += dt
@@ -690,6 +694,13 @@ class Humanoid(pg.sprite.Sprite):
             if player is not None:
                 self.pos.x = player.pos.x + (player.rect.width /2 )
                 self.pos.y = player.pos.y + player.rect.height
+                
+        if self.state == HumanoidState.KILLED:
+            self.kill()
+            particles.append(misc.explosion_effect(self.pos, 20, 70, 120, 1.0, 2.0, 0, 360, DARK_GREY))
+            del self
+            return
+        
 class HumanoidGroup(pg.sprite.Group):
     def __init__(self) -> None:
         super().__init__()
