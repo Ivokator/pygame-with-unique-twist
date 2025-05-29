@@ -9,6 +9,7 @@ import pygame_menu as pm
 
 from pygame.math import Vector2
 
+import items
 import map
 import misc
 
@@ -92,11 +93,13 @@ class Game(object):
     def draw(self) -> None:
         
         self.enemy_group.update(self.offset.x, self.player, self.humanoid_group, self.gameplay_surface)
-        self.humanoid_group.update(self.offset.x, self.gameplay_surface, self.player)
+        self.humanoid_group.update(self.offset.x, self.dt, self.gameplay_surface, self.particles, self.player)
         self.player.update(self.offset.x)
 
         if self.player_group.ships < 0:
             self.game_over()
+
+        misc.draw_visibility_fade(self.gameplay_surface, self.player.pos.x)
 
         # Blit and center surface on the screen
         screen.blit(
@@ -229,8 +232,8 @@ class Game(object):
 
         self.mini_map.add(self.player)
 
-        self.peaks: list[tuple[int, int]] = map.generate_peaks(WORLD_WIDTH)
-        self.mini_map.create_mountain_representation(self.peaks, WORLD_WIDTH)
+        self.peaks: list[tuple[int, int]] = map.generate_peaks(WORLD_WIDTH * 2)
+        self.mini_map.create_mountain_representation(self.peaks, WORLD_WIDTH * 2)
 
         time_since_last_enemy: float = 0.0
         test_spam_enemy_fire_time: float = 0.0
@@ -245,6 +248,10 @@ class Game(object):
 
         self.running = True
 
+        # TESTING ITEMS 
+        self.player.items.append(items.big_shot())
+        self.player.items.append(items.deployable_shield())
+
         while self.running:
             self._calculate_offset()
             self._camera_look_ahead()
@@ -255,7 +262,7 @@ class Game(object):
             self.background()
 
             # Draw mountains
-            map.draw_mountains(self.surface, self.peaks, self.offset.x, WORLD_WIDTH)
+            map.draw_mountains(self.surface, self.peaks, self.offset.x, WORLD_WIDTH * 2)
 
             # if dead, respawn
             if self.player.state == Player.States.DEAD and not currently_reviving:
@@ -283,6 +290,7 @@ class Game(object):
 
                         currently_reviving = True
                         self.player_group.ships -= 1
+                        self.player.smart_bombs = 3
                         self.player_dead_timer = 0.0
 
             # Event handling
@@ -299,20 +307,17 @@ class Game(object):
                 self.screen_flash(1, [(255, 255, 255, 50)], 0.06, 0.02, False)
                 self.particles.append(self.player.death())
                 
+            self.player.update_items(self.dt, 
+                                     collision_list=self.enemy_group.bullets,
+                                     surface=self.surface,
+                                     offset_x=self.offset.x,
+                                     particles=self.particles
+                                     )
             self.player.draw(self.surface)
             self.player.move(self.dt)
-
+            
             # Draw player bullets
-            for bullet in self.player.bullets:
-
-                # off-screen culling
-                if SCREEN_WIDTH * 1.2 < bullet.x > SCREEN_WIDTH * -0.2:
-                    self.player.bullets.remove(bullet)
-                    del bullet
-                    continue
-
-                bullet.update()
-                bullet.draw(self.surface)
+            self.player_bullet_update()
 
             self.update_and_draw_enemy_related()
 
@@ -352,6 +357,8 @@ class Game(object):
                 if (particle_group := self.player.health_indicator(self.offset.x)):
                     self.particles.append(particle_group)
 
+            self.score_check()
+
             # Draw screen
             self.draw()
             
@@ -365,18 +372,40 @@ class Game(object):
             return True
         else:
             return False
+        
+    def player_bullet_update(self) -> None:
+        for bullet in self.player.bullets:
+
+                # off-screen culling
+                if SCREEN_WIDTH * 1.2 < bullet.x or bullet.x < SCREEN_WIDTH * -0.2:
+                    print(bullet)
+                    self.player.bullets.remove(bullet)
+                    del bullet
+                    continue
+
+                bullet.update()
+                bullet.draw(self.surface)
 
     def spawn_enemies(self, num: int) -> None:
         """Spawn given number of enemies."""
         min_distance = 200
         for _ in range(num):
             while True:
-                spawn_x = random.randint(-SCREEN_WIDTH, SCREEN_WIDTH*2)
+                spawn_x = random.randint(-WORLD_WIDTH // 2, WORLD_WIDTH // 2)
                 spawn_y = random.randint(TOP_WIDGET_HEIGHT, GAMEPLAY_HEIGHT)
                 if abs(spawn_x - self.player.pos.x) > min_distance or abs(spawn_y - self.player.pos.y) > min_distance:
                     break
             enemy = Enemy(spawn_x, spawn_y)
             self.enemy_group.add(enemy)
+    
+    def score_check(self) -> None:
+
+        # +1 ship every 10,000 points
+        ships_awarded = self.player_group.score // 10000
+        if ships_awarded > self.player_group.ships_awarded:
+            extra_ships = ships_awarded - self.player_group.ships_awarded
+            self.player_group.ships += extra_ships
+            self.player_group.ships_awarded = ships_awarded
 
     def update_and_draw_enemy_related(self) -> None:
         # Draw enemies
@@ -403,7 +432,13 @@ class Game(object):
                 else:
                     self.player_group.score += 50
                 self.particles.append(enemy.death())
-                self.player.bullets.remove(collided_bullet)
+
+                if isinstance(collided_bullet, items.ChargedBullet):
+                    ...
+                else:
+                    self.player.bullets.remove(collided_bullet)
+
+
                 del enemy
 
         for ebullet in self.enemy_group.bullets:
@@ -419,6 +454,17 @@ class Game(object):
                                                                     ))
 
                         self.enemy_group.bullets.remove(ebullet)
+                        del ebullet
+                        continue
+
+                for item in self.player.items:
+                    if isinstance(item, items.deployable_shield):
+                        player_shield = item
+                        
+                if player_shield:
+                    if pg.Rect.colliderect(player_shield.rect, ebullet.rect):
+                        self.enemy_group.bullets.remove(ebullet)
+                        item.health -= 20
                         del ebullet
                         continue
 
@@ -530,6 +576,12 @@ class Game(object):
 
                 elif event.key == pg.K_p:
                     self.smart_bomb()
+                
+                elif event.key == pg.K_j:
+                    for item in self.player.items:
+                        if isinstance(item, items.deployable_shield):
+                            item.deploy(self.player.pos)
+                        
 
                 elif event.key == pg.K_F1: # self-destruct
                     if self.player.state != Player.States.DEAD:
@@ -539,10 +591,10 @@ class Game(object):
         self.current_wave: int = 1
         self.num_of_enemies: int = 10
         while True:
-            self.wave_screen()
             if self.play_game():
                 self.current_wave += 1
                 self.num_of_enemies += 5
+                self.wave_screen()
     
     def wave_screen(self) -> None:
         """Displays attack wave in big text
@@ -552,17 +604,26 @@ class Game(object):
         running: bool = True
         wait_counter: float = 0.0
 
+        pg.mixer.music.stop()
+
+        def render_wave_text(text: str, line: int = 1) -> None:
+            wave_text: pg.Surface = PRESS_START_FONT.render(text, False, WHITE)
+            wave_text_rect: pg.Rect = wave_text.get_rect()
+            wave_text_rect.center = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - (wave_text_rect.height * 2) + (line - 1) * (wave_text_rect.height + 10))
+            self.surface.blit(wave_text, wave_text_rect)
+
+
         while running:
             for event in pg.event.get():
                 if event.type == pg.QUIT:
                     running = False
             
             self.surface.fill(BLACK)
-            wave_text: pg.Surface = PRESS_START_FONT.render(f"ATTACK WAVE {self.current_wave}", False, WHITE)
-            wave_text_rect: pg.Rect = wave_text.get_rect()
-            wave_text_rect.center = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - (wave_text_rect.height * 2))
-            self.surface.blit(wave_text, wave_text_rect)
 
+            render_wave_text(f"ATTACK WAVE {self.current_wave - 1} COMPLETED")
+            render_wave_text(f"HUMANOIDS LEFT: {len(self.humanoid_group)}", line=2)
+
+            
             wait_counter += self.dt
 
             if wait_counter > 3.0:

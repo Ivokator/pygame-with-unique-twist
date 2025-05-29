@@ -69,6 +69,7 @@ class Player(pg.sprite.Sprite):
         self.bullets: typing.List[PlayerBullet] = []
         self.bullet_cooldown_ms: float = 100
         self.cooldown_timer: int = 0
+        self.bullet_speed: int = 30
 
         self.lookahead_compensation: float = 0.0
 
@@ -105,6 +106,7 @@ class Player(pg.sprite.Sprite):
         self._revive_timer: float = 0.0
         self.REVIVE_DURATION: float = 1.0  # seconds
 
+        self.items: list = []
 
     def health_indicator(self, offset_x: float) -> pg.sprite.Group | None:
         if self.state == Player.States.DEAD:
@@ -126,6 +128,17 @@ class Player(pg.sprite.Sprite):
                                         max_angle=310,
                                         base_colour=random.choice([(63, 63, 63), (207, 195, 40), (255,140,0)]))
         return None
+
+    def update_items(self, dt: float, collision_list: list, surface: pg.Surface, offset_x: float, particles: list[pg.sprite.Group]) -> None:
+        """Updates all items in player's inventory."""
+        for item in self.items:
+            item.update(player=self, 
+                        dt=dt, 
+                        collision_list=collision_list, 
+                        surface=surface,
+                        offset_x=offset_x,
+                        particles=particles,
+                        )
 
     def move(self, dt) -> None:
         if self.state == Player.States.DEAD:
@@ -191,19 +204,29 @@ class Player(pg.sprite.Sprite):
 
         self.pos += self.velocity
 
+        # world border clamp
+        if self.pos.x < -WORLD_WIDTH // 2:
+                self.pos.x = -WORLD_WIDTH // 2
+                self.velocity.x = 0
+        elif self.pos.x > WORLD_WIDTH // 2:
+            self.pos.x = WORLD_WIDTH // 2
+            self.velocity.x = 0
+        self.rect.x = int(self.pos.x)
+
+
         # assigns Vector2 to Tuple[int, int], but works
         self.rect.center = self.pos # type: ignore
 
     def fire_bullet(self) -> None:
         """Fires a bullet."""
         if self.state == Player.States.DEAD:
-            return
+            return  
         # Create a bullet at the player's position
         # and set its angle and speed
         if self.cooldown_timer > self.bullet_cooldown_ms:
             
             self.cooldown_timer = 0
-            bullet = PlayerBullet(self.rect.x + (self.rect.width // 2), self.rect.y + (self.rect.height // 2), width=10, height=10, angle = self.direction * -180, speed=30)
+            bullet = PlayerBullet(self.rect.x + (self.rect.width // 2), self.rect.y + (self.rect.height // 2), width=10, height=10, angle = self.direction * -180, speed=self.bullet_speed)
             self.bullets.append(bullet)
 
             # sound
@@ -286,6 +309,7 @@ class PlayerGroup(pg.sprite.GroupSingle):
         super().__init__()
         self.score: int = 0
         self.ships: int = 5
+        self.ships_awarded: int = 0
 
         self.lives_image: pg.Surface = pg.image.load(os.path.join("images", "player", "idle.png")).convert_alpha()
         self.lives_height: int = TOP_WIDGET_HEIGHT // 8
@@ -335,7 +359,6 @@ class EnemyBullet(object):
     def update(self) -> None:
         self.x += self.velocity.x
         self.y += self.velocity.y
-
 
         self.rect.x, self.rect.y = int(self.x), int(self.y)
 
@@ -630,11 +653,13 @@ class Humanoid(pg.sprite.Sprite):
         self.state: HumanoidState = HumanoidState.IDLE
         self.speed: float = -0.5
         self.fall_speed: float = 2.0
+        self.fall_time: float = 0.0
 
     def draw(self, screen) -> None:
-        pg.draw.rect(screen, DARK_GREY, pg.Rect(self.draw_x, self.pos.y, self.width, self.height))
+        self.rect = pg.Rect(self.draw_x, self.pos.y, self.width, self.height)
+        pg.draw.rect(screen, DARK_GREY, self.rect)
 
-    def update(self, offset_x: float, player=None) -> None:
+    def update(self, offset_x: float, dt: float, particles: list[pg.sprite.Group], player=None | Player) -> None:
         self.draw_x = self.pos.x + offset_x
         
         if self.state == HumanoidState.CAPTURED:
@@ -643,17 +668,35 @@ class Humanoid(pg.sprite.Sprite):
             self.pos.y += self.speed
         elif self.state == HumanoidState.FALLING:
             self.pos.y += self.fall_speed
+            self.fall_time += dt
+
+            # if player catches falling humanoid
+            if self.rect.collidelist([player.hitbox_top, player.hitbox_bottom]):
+                self.state = HumanoidState.RESCUED
+                self.fall_time = 0.0
+
             if self.pos.y >= GROUND_Y:
+                if self.fall_time > 1.0:
+                    self.kill()
+                    particles.append(misc.explosion_effect(self.pos, 20, 70, 120, 1.0, 2.0, 0, 360, DARK_GREY))
+                    del self
+                    return
+            
                 self.pos.y = GROUND_Y
                 self.state = HumanoidState.IDLE
-
+        elif self.state == HumanoidState.RESCUED:
+            # after being rescued, follow player's position
+            print("rescuing humanoid!")
+            if player is not None:
+                self.pos.x = player.pos.x + (player.rect.width /2 )
+                self.pos.y = player.pos.y + player.rect.height
 class HumanoidGroup(pg.sprite.Group):
     def __init__(self) -> None:
         super().__init__()
 
-    def update(self, offset_x: float, screen: pg.Surface, player=None) -> None:
+    def update(self, offset_x: float, dt: float, screen: pg.Surface, particles: list[pg.sprite.Group], player=None) -> None:
         for sprite in self:
-            sprite.update(offset_x, player)
+            sprite.update(offset_x, dt, particles, player)
             sprite.draw(screen)
 
 if __name__ == "__main__":

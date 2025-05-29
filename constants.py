@@ -16,26 +16,26 @@ PLAYER_HEIGHT: int = 34
 SCREEN_WIDTH: int = RESOLUTION[0]
 SCREEN_HEIGHT: int = RESOLUTION[1]
 
-WORLD_WIDTH: int= SCREEN_WIDTH * 5
+WORLD_WIDTH: int= SCREEN_WIDTH * 7
 
 # -----------------------------------------------------------------
 
 # Basic colours
-WHITE: tuple[int, ...] = (255, 255, 255)
-BLACK: tuple[int, ...] = (0, 0, 0)
-BLUE: tuple[int, ...] = (0, 0, 255)
-GREEN: tuple[int, ...] = (0, 255, 0)
-RED: tuple[int, ...] = (255, 0, 0)
+WHITE: tuple[int, int, int] = (255, 255, 255)
+BLACK: tuple[int, int, int] = (0, 0, 0)
+BLUE: tuple[int, int, int] = (0, 0, 255)
+GREEN: tuple[int, int, int] = (0, 255, 0)
+RED: tuple[int, int, int] = (255, 0, 0)
 
-DARK_GREY: tuple[int, ...] = (64, 64, 64)
-DARKER_GREY: tuple[int, ...] = (32, 32, 32)
+DARK_GREY: tuple[int, int, int] = (64, 64, 64)
+DARKER_GREY: tuple[int, int, int] = (32, 32, 32)
 
 
 # SCORE TEXT
 SYSFONT = pg.font.get_default_font()
 DEFAULT_FONT = pg.font.SysFont(SYSFONT, 24)
 PRESS_START_FONT = pg.font.Font(os.path.join("fonts", "PressStart2P-Regular.ttf"), 28)
-
+ARIAL_FONT = pg.font.SysFont('arial', 28)
 # Pygame Menu Themes
 mytheme = pm.themes.Theme(title_bar_style=pm.widgets.MENUBAR_STYLE_NONE,
                           title_font_color = DARK_GREY,
