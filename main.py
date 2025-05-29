@@ -93,11 +93,13 @@ class Game(object):
     def draw(self) -> None:
         
         self.enemy_group.update(self.offset.x, self.player, self.humanoid_group, self.gameplay_surface)
-        self.humanoid_group.update(self.offset.x, self.gameplay_surface, self.player)
+        self.humanoid_group.update(self.offset.x, self.dt, self.gameplay_surface, self.particles, self.player)
         self.player.update(self.offset.x)
 
         if self.player_group.ships < 0:
             self.game_over()
+
+        misc.draw_visibility_fade(self.gameplay_surface, self.player.pos.x)
 
         # Blit and center surface on the screen
         screen.blit(
@@ -230,8 +232,8 @@ class Game(object):
 
         self.mini_map.add(self.player)
 
-        self.peaks: list[tuple[int, int]] = map.generate_peaks(WORLD_WIDTH)
-        self.mini_map.create_mountain_representation(self.peaks, WORLD_WIDTH)
+        self.peaks: list[tuple[int, int]] = map.generate_peaks(WORLD_WIDTH * 2)
+        self.mini_map.create_mountain_representation(self.peaks, WORLD_WIDTH * 2)
 
         time_since_last_enemy: float = 0.0
         test_spam_enemy_fire_time: float = 0.0
@@ -260,7 +262,7 @@ class Game(object):
             self.background()
 
             # Draw mountains
-            map.draw_mountains(self.surface, self.peaks, self.offset.x, WORLD_WIDTH)
+            map.draw_mountains(self.surface, self.peaks, self.offset.x, WORLD_WIDTH * 2)
 
             # if dead, respawn
             if self.player.state == Player.States.DEAD and not currently_reviving:
@@ -288,6 +290,7 @@ class Game(object):
 
                         currently_reviving = True
                         self.player_group.ships -= 1
+                        self.player.smart_bombs = 3
                         self.player_dead_timer = 0.0
 
             # Event handling
@@ -354,6 +357,8 @@ class Game(object):
                 if (particle_group := self.player.health_indicator(self.offset.x)):
                     self.particles.append(particle_group)
 
+            self.score_check()
+
             # Draw screen
             self.draw()
             
@@ -386,12 +391,21 @@ class Game(object):
         min_distance = 200
         for _ in range(num):
             while True:
-                spawn_x = random.randint(-SCREEN_WIDTH, SCREEN_WIDTH*2)
+                spawn_x = random.randint(-WORLD_WIDTH // 2, WORLD_WIDTH // 2)
                 spawn_y = random.randint(TOP_WIDGET_HEIGHT, GAMEPLAY_HEIGHT)
                 if abs(spawn_x - self.player.pos.x) > min_distance or abs(spawn_y - self.player.pos.y) > min_distance:
                     break
             enemy = Enemy(spawn_x, spawn_y)
             self.enemy_group.add(enemy)
+    
+    def score_check(self) -> None:
+
+        # +1 ship every 10,000 points
+        ships_awarded = self.player_group.score // 10000
+        if ships_awarded > self.player_group.ships_awarded:
+            extra_ships = ships_awarded - self.player_group.ships_awarded
+            self.player_group.ships += extra_ships
+            self.player_group.ships_awarded = ships_awarded
 
     def update_and_draw_enemy_related(self) -> None:
         # Draw enemies
@@ -573,10 +587,10 @@ class Game(object):
         self.current_wave: int = 1
         self.num_of_enemies: int = 10
         while True:
-            self.wave_screen()
             if self.play_game():
                 self.current_wave += 1
                 self.num_of_enemies += 5
+                self.wave_screen()
     
     def wave_screen(self) -> None:
         """Displays attack wave in big text
@@ -588,17 +602,24 @@ class Game(object):
 
         pg.mixer.music.stop()
 
+        def render_wave_text(text: str, line: int = 1) -> None:
+            wave_text: pg.Surface = PRESS_START_FONT.render(text, False, WHITE)
+            wave_text_rect: pg.Rect = wave_text.get_rect()
+            wave_text_rect.center = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - (wave_text_rect.height * 2) + (line - 1) * (wave_text_rect.height + 10))
+            self.surface.blit(wave_text, wave_text_rect)
+
+
         while running:
             for event in pg.event.get():
                 if event.type == pg.QUIT:
                     running = False
             
             self.surface.fill(BLACK)
-            wave_text: pg.Surface = PRESS_START_FONT.render(f"ATTACK WAVE {self.current_wave}", False, WHITE)
-            wave_text_rect: pg.Rect = wave_text.get_rect()
-            wave_text_rect.center = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - (wave_text_rect.height * 2))
-            self.surface.blit(wave_text, wave_text_rect)
 
+            render_wave_text(f"ATTACK WAVE {self.current_wave - 1} COMPLETED")
+            render_wave_text(f"HUMANOIDS LEFT: {len(self.humanoid_group)}", line=2)
+
+            
             wait_counter += self.dt
 
             if wait_counter > 3.0:

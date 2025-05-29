@@ -36,8 +36,10 @@ def explosion_effect(pos: Vector2,
         max_speed (float): Maximum speed of the particles.
         min_lifetime (float): Minimum lifetime of the particles.
         max_lifetime (float): Maximum lifetime of the particles.
-        angle (int): Angle (in degrees) to shoot the particle.
+        min_angle (int): Min angle to shoot particles.
+        max_angle (int): Max angle to shoot particles.
         base_colour (tuple[int, int, int]): Base color of the particles.
+        reversed (bool): Set to True to create reverse explosion effect
     Returns:
         pg.sprite.Group: A group of particles (sprites) representing the explosion.
     """
@@ -175,6 +177,56 @@ class ParticleGroup(pg.sprite.Group):
         for sprite in self.sprites():
             sprite.update(dt)
             sprite.draw(screen, offset_x)
+
+
+def draw_visibility_fade(surface: pg.Surface, player_x: float):
+    """Fog near world borders to indicate that player shouldn't go there"""
+    width, height = surface.get_size()
+    zone = SCREEN_WIDTH // 4
+
+    # Distance from edge
+    dist_left  = max(0,  zone - (player_x - -WORLD_WIDTH / 2))
+    dist_right = max(0,  zone - (WORLD_WIDTH / 2 - player_x))
+
+    fade = pg.Surface((zone, height), pg.SRCALPHA)
+
+    for x in range(int(dist_left)):
+        alpha = int(200 * (1 - (x / zone)))
+        fade.fill((255, 255, 255, alpha), rect=pg.Rect(x, 0, 1, height))
+    surface.blit(fade, (0, 0))
+
+    fade = pg.Surface((zone, height), pg.SRCALPHA)
+    for x in range(int(dist_right)):
+        alpha = int(200 * (1 - (x / zone)))
+        fade.fill((255, 255, 255, alpha), rect=pg.Rect(zone - 1 - x, 0, 1, height))
+    surface.blit(fade, (width - zone, 0))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 """

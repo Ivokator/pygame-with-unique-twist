@@ -202,6 +202,16 @@ class Player(pg.sprite.Sprite):
 
         self.pos += self.velocity
 
+        # world border clamp
+        if self.pos.x < -WORLD_WIDTH // 2:
+                self.pos.x = -WORLD_WIDTH // 2
+                self.velocity.x = 0
+        elif self.pos.x > WORLD_WIDTH // 2:
+            self.pos.x = WORLD_WIDTH // 2
+            self.velocity.x = 0
+        self.rect.x = int(self.pos.x)
+
+
         # assigns Vector2 to Tuple[int, int], but works
         self.rect.center = self.pos # type: ignore
 
@@ -298,6 +308,7 @@ class PlayerGroup(pg.sprite.GroupSingle):
         super().__init__()
         self.score: int = 0
         self.ships: int = 5
+        self.ships_awarded: int = 0
 
         self.lives_image: pg.Surface = pg.image.load(os.path.join("images", "player", "idle.png")).convert_alpha()
         self.lives_height: int = TOP_WIDGET_HEIGHT // 8
@@ -592,11 +603,13 @@ class Humanoid(pg.sprite.Sprite):
         self.state: HumanoidState = HumanoidState.IDLE
         self.speed: float = -0.5
         self.fall_speed: float = 2.0
+        self.fall_time: float = 0.0
 
     def draw(self, screen) -> None:
-        pg.draw.rect(screen, DARK_GREY, pg.Rect(self.draw_x, self.pos.y, self.width, self.height))
+        self.rect = pg.Rect(self.draw_x, self.pos.y, self.width, self.height)
+        pg.draw.rect(screen, DARK_GREY, self.rect)
 
-    def update(self, offset_x: float, player=None) -> None:
+    def update(self, offset_x: float, dt: float, particles: list[pg.sprite.Group], player=None | Player) -> None:
         self.draw_x = self.pos.x + offset_x
         
         if self.state == HumanoidState.CAPTURED:
@@ -605,17 +618,35 @@ class Humanoid(pg.sprite.Sprite):
             self.pos.y += self.speed
         elif self.state == HumanoidState.FALLING:
             self.pos.y += self.fall_speed
+            self.fall_time += dt
+
+            # if player catches falling humanoid
+            if self.rect.collidelist([player.hitbox_top, player.hitbox_bottom]):
+                self.state = HumanoidState.RESCUED
+                self.fall_time = 0.0
+
             if self.pos.y >= GROUND_Y:
+                if self.fall_time > 1.0:
+                    self.kill()
+                    particles.append(misc.explosion_effect(self.pos, 20, 70, 120, 1.0, 2.0, 0, 360, DARK_GREY))
+                    del self
+                    return
+            
                 self.pos.y = GROUND_Y
                 self.state = HumanoidState.IDLE
-
+        elif self.state == HumanoidState.RESCUED:
+            # after being rescued, follow player's position
+            print("rescuing humanoid!")
+            if player is not None:
+                self.pos.x = player.pos.x + (player.rect.width /2 )
+                self.pos.y = player.pos.y + player.rect.height
 class HumanoidGroup(pg.sprite.Group):
     def __init__(self) -> None:
         super().__init__()
 
-    def update(self, offset_x: float, screen: pg.Surface, player=None) -> None:
+    def update(self, offset_x: float, dt: float, screen: pg.Surface, particles: list[pg.sprite.Group], player=None) -> None:
         for sprite in self:
-            sprite.update(offset_x, player)
+            sprite.update(offset_x, dt, particles, player)
             sprite.draw(screen)
 
 if __name__ == "__main__":

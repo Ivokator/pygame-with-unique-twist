@@ -5,9 +5,9 @@ import sys
 from constants import *
 
 # LANDSCAPE CONSTANTS
-NUM_SEGMENTS: int = 500
-MIN_HEIGHT: int = SCREEN_HEIGHT // 4
-MAX_HEIGHT: int = SCREEN_HEIGHT // 2
+NUM_SEGMENTS: int = 700
+MIN_HEIGHT: int = SCREEN_HEIGHT // 2
+MAX_HEIGHT: int = GROUND_Y
 #
 MOUNTAIN_COLOR: tuple[int, int, int] = (8, 5, 3)
 OUTLINE_COLOR: tuple[int, int, int] = (137, 196, 152)
@@ -71,6 +71,10 @@ def draw_mountains(surface: pygame.Surface, peaks: list[tuple[int, int]], offset
     # outline
     for a, b in zip(shifted, shifted[1:]):
         pygame.draw.line(surface, OUTLINE_COLOR, a, b, LINE_WIDTH)
+
+    # ground
+    ground_rect = pygame.Rect(shifted[0][0], GROUND_Y, world_width, SCREEN_HEIGHT - GROUND_Y)
+    pygame.draw.rect(surface, (16, 10, 6), ground_rect)
 
 
 if __name__ == "__main__":

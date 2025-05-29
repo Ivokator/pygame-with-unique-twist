@@ -16,7 +16,7 @@ PLAYER_HEIGHT: int = 34
 SCREEN_WIDTH: int = RESOLUTION[0]
 SCREEN_HEIGHT: int = RESOLUTION[1]
 
-WORLD_WIDTH: int= SCREEN_WIDTH * 5
+WORLD_WIDTH: int= SCREEN_WIDTH * 7
 
 # -----------------------------------------------------------------
 
