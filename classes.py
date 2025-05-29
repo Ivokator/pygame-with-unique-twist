@@ -366,9 +366,13 @@ class Enemy(pg.sprite.Sprite):
         self.wander_timer = 0.0
         self.chase_probability = 0.6
         self.closest_humanoid: Vector2 = Vector2(0, 0)
+        self.captured_humanoid = None
         self.scanned = False
 
     def death(self, sound_on: bool = True) -> pg.sprite.Group:
+        if self.captured_humanoid is not None:
+            self.captured_humanoid.state = HumanoidState.FALLING
+            self.captured_humanoid = None
         if sound_on:
             random_sound: pg.mixer.Sound = random.choice([sound.ENEMY_EXPLOSION1, sound.ENEMY_EXPLOSION2, sound.ENEMY_EXPLOSION3, sound.ENEMY_EXPLOSION4, sound.ENEMY_EXPLOSION5])
             for i in range(1,6):
@@ -417,11 +421,17 @@ class Enemy(pg.sprite.Sprite):
             if self.velocity.length() > self.max_speed:
                 self.velocity.scale_to_length(self.max_speed)
             self.pos += self.velocity
-            if self.pos.distance_to(self.closest_humanoid) < 10:
+            if self.pos.distance_to(self.closest_humanoid) < 10 and self.captured_humanoid is None:
                 for humanoid in humanoids:
-                    if humanoid.pos == self.closest_humanoid:
+                    if humanoid.pos == self.closest_humanoid and humanoid.state != HumanoidState.CAPTURED:
                         humanoid.state = HumanoidState.CAPTURED
+                        self.captured_humanoid = humanoid
                         break
+            if self.pos.y + self.height < 0:
+                if self.captured_humanoid is not None:
+                    self.captured_humanoid.state = HumanoidState.FALLING
+                    self.captured_humanoid = None
+                self.kill()
         self.draw_x = self.pos.x + offset_x
         self.rect.x = int(self.draw_x)
         self.rect.y = int(self.pos.y)
@@ -563,6 +573,7 @@ class Humanoid(pg.sprite.Sprite):
 
         self.state: HumanoidState = HumanoidState.IDLE
         self.speed: float = -0.5
+        self.fall_speed: float = 2.0
 
     def draw(self, screen) -> None:
         pg.draw.rect(screen, DARK_GREY, pg.Rect(self.draw_x, self.pos.y, self.width, self.height))
@@ -572,7 +583,11 @@ class Humanoid(pg.sprite.Sprite):
         
         if self.state == HumanoidState.CAPTURED:
             self.pos.y += self.speed
-
+        elif self.state == HumanoidState.FALLING:
+            self.pos.y += self.fall_speed
+            if self.pos.y >= GROUND_Y:
+                self.pos.y = GROUND_Y
+                self.state = HumanoidState.IDLE
 
 class HumanoidGroup(pg.sprite.Group):
     def __init__(self) -> None:
