@@ -390,7 +390,13 @@ class Enemy(pg.sprite.Sprite):
 
         #pg.draw.rect(surface, GREEN, pg.Rect(self.draw_x, self.pos.y, self.width, self.height))
 
-    def update(self, offset_x: float, player_pos: Vector2, humanoids: list) -> None:
+    def update(self, offset_x: float, player, humanoids_pos, screen) -> None:
+        if hasattr(player, "state") and getattr(player, "state", None) == Player.States.DEAD:
+            self.draw_x = self.pos.x + offset_x
+            self.rect.x = int(self.draw_x)
+            self.rect.y = int(self.pos.y)
+            return
+        player_pos = player.pos
         if self.state == EnemyState.ATTACKING:
             distance = self.pos.distance_to(player_pos)
             if distance < self.chase_distance and random.random() < self.chase_probability:
@@ -422,8 +428,8 @@ class Enemy(pg.sprite.Sprite):
                 self.velocity.scale_to_length(self.max_speed)
             self.pos += self.velocity
             if self.pos.distance_to(self.closest_humanoid) < 10 and self.captured_humanoid is None:
-                for humanoid in humanoids:
-                    if humanoid.pos == self.closest_humanoid and humanoid.state != HumanoidState.CAPTURED:
+                for humanoid in humanoids_pos:
+                    if humanoid.pos == self.closest_humanoid and humanoid.state != HumanoidState.CAPTURED: #im so sorry for this mess, im just too lazy to write comments
                         humanoid.state = HumanoidState.CAPTURED
                         self.captured_humanoid = humanoid
                         break
@@ -455,7 +461,7 @@ class EnemyGroup(pg.sprite.Group):
         self.capturing_timer: float = 0.0
         self.capturing_interval: float = 3.0
 
-    def update(self, offset_x: float, player_pos, humanoids_pos, screen) -> None:
+    def update(self, offset_x: float, player, humanoids_pos, screen) -> None:
         dt = pg.time.get_ticks() / 1000
         if not hasattr(self, "_last_update_time"):
             self._last_update_time = dt
@@ -475,7 +481,7 @@ class EnemyGroup(pg.sprite.Group):
         for enemy in self.sprites():
             self.bullets += enemy.bullets
             enemy.bullets.clear()
-            enemy.update(offset_x, player_pos, humanoids_pos)
+            enemy.update(offset_x, player, humanoids_pos, screen)
             enemy.draw(screen)
 
 class MiniMap(pg.sprite.Group):

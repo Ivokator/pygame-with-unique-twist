@@ -91,7 +91,7 @@ class Game(object):
 
     def draw(self) -> None:
         
-        self.enemy_group.update(self.offset.x, self.player.pos, self.humanoid_group, self.gameplay_surface)
+        self.enemy_group.update(self.offset.x, self.player, self.humanoid_group, self.gameplay_surface)
         self.humanoid_group.update(self.offset.x, self.gameplay_surface)
         self.player.update(self.offset.x)
 
@@ -247,7 +247,6 @@ class Game(object):
 
         while self.running:
             self._calculate_offset()
-
             self._camera_look_ahead()
 
             # Update background
@@ -265,7 +264,20 @@ class Game(object):
                 else:
                     self.player_dead_timer += self.dt
                     if self.player_dead_timer >= 2.0:
-                        self.player.pos = Vector2(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4)
+                        # safe respawn logic
+                        respawn_x = SCREEN_WIDTH // 2
+                        respawn_y = SCREEN_HEIGHT // 4
+                        temp_rect = pg.Rect(respawn_x, respawn_y, PLAYER_WIDTH, PLAYER_HEIGHT)
+                        max_attempts = 20
+                        attempts = 0
+                        while any(temp_rect.colliderect(enemy.rect) for enemy in self.enemy_group.sprites()) and attempts < max_attempts:
+                            respawn_y += PLAYER_HEIGHT + 10
+                            if respawn_y > GAMEPLAY_HEIGHT - PLAYER_HEIGHT:
+                                respawn_y = TOP_WIDGET_HEIGHT + 10
+                            temp_rect = pg.Rect(respawn_x, respawn_y, PLAYER_WIDTH, PLAYER_HEIGHT)
+                            attempts += 1
+                        self.player.pos = Vector2(respawn_x, respawn_y)
+                        
                         revival_particles = self.player.revive(self.offset.x)
                         self.particles.append(revival_particles)
 
@@ -356,17 +368,21 @@ class Game(object):
 
     def spawn_enemies(self, num: int) -> None:
         """Spawn given number of enemies."""
-
+        min_distance = 200
         for _ in range(num):
-            enemy = Enemy(random.randint(-SCREEN_WIDTH, SCREEN_WIDTH*2), random.randint(TOP_WIDGET_HEIGHT, GAMEPLAY_HEIGHT))
+            while True:
+                spawn_x = random.randint(-SCREEN_WIDTH, SCREEN_WIDTH*2)
+                spawn_y = random.randint(TOP_WIDGET_HEIGHT, GAMEPLAY_HEIGHT)
+                if abs(spawn_x - self.player.pos.x) > min_distance or abs(spawn_y - self.player.pos.y) > min_distance:
+                    break
+            enemy = Enemy(spawn_x, spawn_y)
             self.enemy_group.add(enemy)
 
     def update_and_draw_enemy_related(self) -> None:
         # Draw enemies
         for enemy in self.enemy_group.sprites():
-            enemy.update(self.offset.x, self.player.pos, self.humanoid_group.sprites())
+            enemy.update(self.offset.x, self.player, self.humanoid_group.sprites(), self.surface)
 
-            # off-screen culling
             if -(SCREEN_WIDTH * 0.2) < enemy.pos.x < SCREEN_WIDTH * 1.2:
                 enemy.draw(self.surface)
 
