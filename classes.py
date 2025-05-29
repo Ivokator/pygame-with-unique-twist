@@ -69,6 +69,7 @@ class Player(pg.sprite.Sprite):
         self.bullets: typing.List[PlayerBullet] = []
         self.bullet_cooldown_ms: float = 100
         self.cooldown_timer: int = 0
+        self.bullet_speed: int = 30
 
         self.lookahead_compensation: float = 0.0
 
@@ -101,6 +102,7 @@ class Player(pg.sprite.Sprite):
 
         self.smart_bomb_image = pg.transform.scale(self.smart_bomb_image, (self.smart_bomb_width, self.smart_bomb_height))
 
+        self.items: list = []
 
     def health_indicator(self, offset_x: float) -> pg.sprite.Group | None:
         if self.state == Player.States.DEAD:
@@ -123,6 +125,17 @@ class Player(pg.sprite.Sprite):
                                         max_angle=310,
                                         base_colour=random.choice([(63, 63, 63), (207, 195, 40), (255,140,0)]))
         return None
+
+    def update_items(self, dt: float, collision_list: list, surface: pg.Surface, offset_x: float, particles: list[pg.sprite.Group]) -> None:
+        """Updates all items in player's inventory."""
+        for item in self.items:
+            item.update(player=self, 
+                        dt=dt, 
+                        collision_list=collision_list, 
+                        surface=surface,
+                        offset_x=offset_x,
+                        particles=particles,
+                        )
 
     def move(self, dt) -> None:
         if self.state == Player.States.DEAD:
@@ -195,13 +208,13 @@ class Player(pg.sprite.Sprite):
     def fire_bullet(self) -> None:
         """Fires a bullet."""
         if self.state == Player.States.DEAD:
-            return
+            return  
         # Create a bullet at the player's position
         # and set its angle and speed
         if self.cooldown_timer > self.bullet_cooldown_ms:
             
             self.cooldown_timer = 0
-            bullet = PlayerBullet(self.rect.x + (self.rect.width // 2), self.rect.y + (self.rect.height // 2), width=10, height=10, angle = self.direction * -180, speed=30)
+            bullet = PlayerBullet(self.rect.x + (self.rect.width // 2), self.rect.y + (self.rect.height // 2), width=10, height=10, angle = self.direction * -180, speed=self.bullet_speed)
             self.bullets.append(bullet)
 
             # sound
@@ -334,7 +347,6 @@ class EnemyBullet(object):
     def update(self) -> None:
         self.x += self.velocity.x
         self.y += self.velocity.y
-
 
         self.rect.x, self.rect.y = int(self.x), int(self.y)
 

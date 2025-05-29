@@ -1,3 +1,14 @@
+"""
+Sound channels:
+
+0: Player fire
+1-5: Enemy explosion
+6: big_shot
+
+
+
+"""
+
 import os
 import pygame as pg
 
@@ -27,6 +38,15 @@ ENEMY_EXPLOSION5 = pg.mixer.Sound(os.path.join("sound_fx", "enemy", "explosion5.
 for sound in [ENEMY_EXPLOSION1, ENEMY_EXPLOSION2, ENEMY_EXPLOSION3, ENEMY_EXPLOSION4, ENEMY_EXPLOSION5]:
     sound.set_volume(0.38)
 
+
+
+
+# ITEM SPECIFIC
+CHARGE_FIRE_SOUND = pg.mixer.Sound(os.path.join("sound_fx", "item_specific", "big_shot", "charge-fire.wav"))
+CHARGE_FIRE_SOUND.set_volume(0.13)
+
+CHARGED_SOUND = pg.mixer.Sound(os.path.join("sound_fx", "item_specific", "big_shot", "charged.wav"))
+CHARGED_SOUND.set_volume(0.18)
 
 
 if __name__ == "__main__":

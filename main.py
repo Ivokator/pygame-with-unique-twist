@@ -9,6 +9,7 @@ import pygame_menu as pm
 
 from pygame.math import Vector2
 
+import items
 import map
 import misc
 
@@ -245,6 +246,10 @@ class Game(object):
 
         self.running = True
 
+        # TESTING ITEMS 
+        self.player.items.append(items.big_shot())
+        self.player.items.append(items.deployable_shield())
+
         while self.running:
             self._calculate_offset()
 
@@ -287,20 +292,17 @@ class Game(object):
                 self.screen_flash(1, [(255, 255, 255, 50)], 0.06, 0.02, False)
                 self.particles.append(self.player.death())
                 
+            self.player.update_items(self.dt, 
+                                     collision_list=self.enemy_group.bullets,
+                                     surface=self.surface,
+                                     offset_x=self.offset.x,
+                                     particles=self.particles
+                                     )
             self.player.draw(self.surface)
             self.player.move(self.dt)
-
+            
             # Draw player bullets
-            for bullet in self.player.bullets:
-
-                # off-screen culling
-                if SCREEN_WIDTH * 1.2 < bullet.x > SCREEN_WIDTH * -0.2:
-                    self.player.bullets.remove(bullet)
-                    del bullet
-                    continue
-
-                bullet.update()
-                bullet.draw(self.surface)
+            self.player_bullet_update()
 
             self.update_and_draw_enemy_related()
 
@@ -353,6 +355,19 @@ class Game(object):
             return True
         else:
             return False
+        
+    def player_bullet_update(self) -> None:
+        for bullet in self.player.bullets:
+
+                # off-screen culling
+                if SCREEN_WIDTH * 1.2 < bullet.x or bullet.x < SCREEN_WIDTH * -0.2:
+                    print(bullet)
+                    self.player.bullets.remove(bullet)
+                    del bullet
+                    continue
+
+                bullet.update()
+                bullet.draw(self.surface)
 
     def spawn_enemies(self, num: int) -> None:
         """Spawn given number of enemies."""
@@ -379,7 +394,13 @@ class Game(object):
             if (collided_bullet := pg.sprite.spritecollideany(enemy, self.player.bullets)): # type: ignore
                 # hit enemy!
                 self.particles.append(enemy.death())
-                self.player.bullets.remove(collided_bullet)
+
+                if isinstance(collided_bullet, items.ChargedBullet):
+                    ...
+                else:
+                    self.player.bullets.remove(collided_bullet)
+
+
                 del enemy
                 self.player_group.score += 50
 
@@ -396,6 +417,17 @@ class Game(object):
                                                                     ))
 
                         self.enemy_group.bullets.remove(ebullet)
+                        del ebullet
+                        continue
+
+                for item in self.player.items:
+                    if isinstance(item, items.deployable_shield):
+                        player_shield = item
+                        
+                if player_shield:
+                    if pg.Rect.colliderect(player_shield.rect, ebullet.rect):
+                        self.enemy_group.bullets.remove(ebullet)
+                        item.health -= 20
                         del ebullet
                         continue
 
@@ -507,6 +539,12 @@ class Game(object):
 
                 elif event.key == pg.K_p:
                     self.smart_bomb()
+                
+                elif event.key == pg.K_j:
+                    for item in self.player.items:
+                        if isinstance(item, items.deployable_shield):
+                            item.deploy(self.player.pos)
+                        
 
                 elif event.key == pg.K_F1: # self-destruct
                     if self.player.state != Player.States.DEAD:
@@ -528,6 +566,8 @@ class Game(object):
         """
         running: bool = True
         wait_counter: float = 0.0
+
+        pg.mixer.music.stop()
 
         while running:
             for event in pg.event.get():
