@@ -12,7 +12,7 @@ from pygame.math import Vector2
 import map
 import misc
 
-from classes import Player, PlayerBullet, PlayerGroup, EnemyBullet, Enemy, EnemyGroup, Humanoid, HumanoidGroup, HumanoidState, MiniMap
+from classes import EnemyState, Player, PlayerBullet, PlayerGroup, EnemyBullet, Enemy, EnemyGroup, Humanoid, HumanoidGroup, HumanoidState, MiniMap
 from downgrade_fx import apply_downgrade_effect
 
 from constants import *
@@ -378,10 +378,13 @@ class Game(object):
             # collision detection with player bullets
             if (collided_bullet := pg.sprite.spritecollideany(enemy, self.player.bullets)): # type: ignore
                 # hit enemy!
+                if getattr(enemy, "state", None) == EnemyState.CAPTURING:
+                    self.player_group.score += 250
+                else:
+                    self.player_group.score += 50
                 self.particles.append(enemy.death())
                 self.player.bullets.remove(collided_bullet)
                 del enemy
-                self.player_group.score += 50
 
         for ebullet in self.enemy_group.bullets:
                 # enemy bullet collision detection w/ player
