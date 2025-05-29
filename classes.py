@@ -584,10 +584,12 @@ class Humanoid(pg.sprite.Sprite):
     def draw(self, screen) -> None:
         pg.draw.rect(screen, DARK_GREY, pg.Rect(self.draw_x, self.pos.y, self.width, self.height))
 
-    def update(self, offset_x: float) -> None:
+    def update(self, offset_x: float, player=None) -> None:
         self.draw_x = self.pos.x + offset_x
         
         if self.state == HumanoidState.CAPTURED:
+            if player is None or getattr(player, "state", None) == Player.States.DEAD:
+                return
             self.pos.y += self.speed
         elif self.state == HumanoidState.FALLING:
             self.pos.y += self.fall_speed
@@ -599,10 +601,9 @@ class HumanoidGroup(pg.sprite.Group):
     def __init__(self) -> None:
         super().__init__()
 
-    def update(self, offset_x: float, screen: pg.Surface) -> None:
-        # placeholder function until humanoids have image sprites
+    def update(self, offset_x: float, screen: pg.Surface, player=None) -> None:
         for sprite in self:
-            sprite.update(offset_x)
+            sprite.update(offset_x, player)
             sprite.draw(screen)
 
 if __name__ == "__main__":

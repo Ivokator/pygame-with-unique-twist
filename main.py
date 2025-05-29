@@ -92,7 +92,7 @@ class Game(object):
     def draw(self) -> None:
         
         self.enemy_group.update(self.offset.x, self.player, self.humanoid_group, self.gameplay_surface)
-        self.humanoid_group.update(self.offset.x, self.gameplay_surface)
+        self.humanoid_group.update(self.offset.x, self.gameplay_surface, self.player)
         self.player.update(self.offset.x)
 
         if self.player_group.ships < 0:
