@@ -64,7 +64,7 @@ class big_shot(object):
             "Speed": self.speed, 
         }
     
-    def use(**kwargs) -> None:
+    def use(self, player=None, dt=None, particles=None, keybinds=None, **kwargs) -> None:
         pass
 
     def update(self, player: Player, dt: float, keybinds: dict[str,int], **kwargs) -> None:

@@ -16,7 +16,7 @@ import misc
 from classes import EnemyState, Player, PlayerBullet, PlayerGroup, EnemyBullet, Enemy, EnemyGroup, Humanoid, HumanoidGroup, HumanoidState, Mutant, MiniMap
 from constants import *
 from downgrade_fx import apply_downgrade_effect
-from shop import ShopUI
+from shop import ShopUI, InventoryItem
 
 # Initialize
 pg.mixer.pre_init(44100, -16, 16, 512)
@@ -664,16 +664,16 @@ class Game(object):
                 #            item.deploy(self.player.pos)
 
                 elif event.key == keybinds["use_item_1"] and len(self.player.items) >= 1:
-                    self.player.items[0].use(self.player, dt=self.dt, particles=self.particles, keybinds=keybinds)
+                    self.player.items[0].use(player=self.player, dt=self.dt, particles=self.particles, keybinds=keybinds)
 
                 elif event.key == keybinds["use_item_2"] and len(self.player.items) >= 2:
-                    self.player.items[1].use(self.player, dt=self.dt, particles=self.particles, keybinds=keybinds)
+                    self.player.items[1].use(player=self.player, dt=self.dt, particles=self.particles, keybinds=keybinds)
 
                 elif event.key == keybinds["use_item_3"] and len(self.player.items) >= 3:
-                    self.player.items[2].use(self.player, dt=self.dt, particles=self.particles, keybinds=keybinds)
+                    self.player.items[2].use(player=self.player, dt=self.dt, particles=self.particles, keybinds=keybinds)
 
                 elif event.key == keybinds["use_item_4"] and len(self.player.items) >= 4:
-                    self.player.items[3].use(self.player, dt=self.dt, particles=self.particles, keybinds=keybinds)
+                    self.player.items[3].use(player=self.player, dt=self.dt, particles=self.particles, keybinds=keybinds)
 
                         
 
@@ -789,5 +789,6 @@ if __name__ == "__main__":
         master_game.main_menu()
         master_game.game_loop()
 
+        InventoryItem._all_wrappers.clear()
         screen.fill((0, 0, 0))
         pg.display.flip()
