@@ -26,7 +26,7 @@ for sound in [PLAYER_FIRE1, PLAYER_FIRE2, PLAYER_FIRE3, PLAYER_FIRE4]:
 
 # thruster. music to my ears!
 pg.mixer.music.load(os.path.join("sound_fx", "player", "thruster.mp3"))
-pg.mixer.music.set_volume(0.22)
+pg.mixer.music.set_volume(0.3)
 
 
 ENEMY_EXPLOSION1 = pg.mixer.Sound(os.path.join("sound_fx", "enemy", "explosion1.wav"))

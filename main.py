@@ -13,10 +13,10 @@ import items
 import map
 import misc
 
-from classes import EnemyState, Player, PlayerBullet, PlayerGroup, EnemyBullet, Enemy, EnemyGroup, Humanoid, HumanoidGroup, HumanoidState, MiniMap
-from downgrade_fx import apply_downgrade_effect
-
+from classes import EnemyState, Player, PlayerBullet, PlayerGroup, EnemyBullet, Enemy, EnemyGroup, Humanoid, HumanoidGroup, HumanoidState, Mutant, MiniMap
 from constants import *
+from downgrade_fx import apply_downgrade_effect
+from shop import ShopUI
 
 # Initialize
 pg.mixer.pre_init(44100, -16, 16, 512)
@@ -38,6 +38,19 @@ MAX_LOOKAHEAD: float = SCREEN_WIDTH * 0.5 # pixels ahead of player
 SMOOTHING: float = 0.03 # higher = snappier
 EDGE_MARGIN = SCREEN_WIDTH * 0.3 # pixels from left/right edge
 
+keybinds: dict[str, int] = {
+    "move_left":    pg.K_a,
+    "move_right":   pg.K_d,
+    "move_up":      pg.K_w,
+    "move_down":    pg.K_s,
+    "shoot":        pg.K_SPACE,
+    "smart_bomb":   pg.K_p,
+    "use_item_1":   pg.K_j,
+    "use_item_2":   pg.K_k,
+    "use_item_3":   pg.K_l,
+    "use_item_4":   pg.K_SEMICOLON,
+}
+
 def quit() -> None:
     """Terminates game."""
     pg.quit()
@@ -55,7 +68,7 @@ class Game(object):
         self.player_group: PlayerGroup = PlayerGroup()
 
         # Intialize player
-        self.player: Player = Player(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4, PLAYER_WIDTH, PLAYER_HEIGHT)
+        self.player: Player = Player(0, SCREEN_HEIGHT // 4, PLAYER_WIDTH, PLAYER_HEIGHT)
         self.player_group.add(self.player)
 
         self.enemy_group: EnemyGroup = EnemyGroup()
@@ -76,15 +89,16 @@ class Game(object):
         self.current_lookahead = 0.0
 
         self.particles: list[pg.sprite.Group] = []
+        self.pop_up_sprites: list[pg.sprite.Sprite] = []
 
         self.initial_humanoids: int = 30
         self.humanoid_group: HumanoidGroup = HumanoidGroup()
+        self.humanoids_left: int = self.initial_humanoids
 
         self.game_over_text: pg.Surface = PRESS_START_FONT.render("GAME OVER", False, GREEN)
         self.game_over_text_rect: pg.Rect = self.game_over_text.get_rect()
         self.game_over_text_rect.center = (SCREEN_WIDTH // 2, GAMEPLAY_HEIGHT // 2)
         self.game_over_timer: float = 0.0
-
 
         self.smart_bomb_text: pg.Surface = PRESS_START_FONT.render("SMART BOMB!", False, WHITE)
         self.smart_bomb_text_rect: pg.Rect = self.smart_bomb_text.get_rect()
@@ -92,9 +106,10 @@ class Game(object):
 
     def draw(self) -> None:
         
-        self.enemy_group.update(self.offset.x, self.player, self.humanoid_group, self.gameplay_surface)
-        self.humanoid_group.update(self.offset.x, self.dt, self.gameplay_surface, self.particles, self.player)
-        self.player.update(self.offset.x)
+        self.humanoid_group.update(self.offset.x, self.dt, self.gameplay_surface, self.particles, self.player_group, self.pop_up_sprites, self.player)
+        self.enemy_group.update(self.offset.x, self.player, self.humanoid_group, self.gameplay_surface, self.dt, self.current_wave)
+        
+        self.player.update(self.offset.x, self.dt, keybinds)
 
         if self.player_group.ships < 0:
             self.game_over()
@@ -198,7 +213,7 @@ class Game(object):
         # Scroll background
         for i in range(-1, test_space_tiles + 1):
             self.surface.blit(scaled_background, 
-            (self.offset.x % background_width + i * background_width, 50))
+            ((self.offset.x * 0.5) % background_width + i * background_width, 50))
 
     def _screen_rescale(self) -> None:
         pg.transform.scale(
@@ -244,13 +259,16 @@ class Game(object):
         currently_reviving: bool = False
 
         self.generate_humanoids()
-        self.spawn_enemies(min(self.num_of_enemies, 30))
+        self.spawn_enemies(self.num_of_landers, self.num_of_mutants)
+
+        sorted_by_slot = sorted(
+            self.player_group.upgrades,
+            key=lambda item: getattr(item, 'slot', 1)  # default to slot 1 if missing
+        )
+        # Now put them in player.items
+        self.player.items = sorted_by_slot[:]
 
         self.running = True
-
-        # TESTING ITEMS 
-        self.player.items.append(items.big_shot())
-        self.player.items.append(items.deployable_shield())
 
         while self.running:
             self._calculate_offset()
@@ -271,6 +289,7 @@ class Game(object):
                 else:
                     self.player_dead_timer += self.dt
                     if self.player_dead_timer >= 2.0:
+
                         # safe respawn logic
                         respawn_x = SCREEN_WIDTH // 2
                         respawn_y = SCREEN_HEIGHT // 4
@@ -287,6 +306,8 @@ class Game(object):
                         
                         revival_particles = self.player.revive(self.offset.x)
                         self.particles.append(revival_particles)
+                        self.player.invulnerable = True # i-frames
+                        self.player.invul_timer = 0.0
 
                         currently_reviving = True
                         self.player_group.ships -= 1
@@ -307,14 +328,16 @@ class Game(object):
                 self.screen_flash(1, [(255, 255, 255, 50)], 0.06, 0.02, False)
                 self.particles.append(self.player.death())
                 
-            self.player.update_items(self.dt, 
+            self.player_group.update_items(self.dt, 
                                      collision_list=self.enemy_group.bullets,
                                      surface=self.surface,
                                      offset_x=self.offset.x,
+                                     keybinds=keybinds,
                                      particles=self.particles
                                      )
+            
             self.player.draw(self.surface)
-            self.player.move(self.dt)
+            self.player.move(self.dt, keybinds)
             
             # Draw player bullets
             self.player_bullet_update()
@@ -324,8 +347,9 @@ class Game(object):
             test_spam_enemy_fire_time += self.dt
             if test_spam_enemy_fire_time > 1.3:
                 for enemy in self.enemy_group.sprites():
-                    enemy.fire_bullet(self.player.pos.x, self.player.pos.y)
-                    test_spam_enemy_fire_time = 0.0
+                    if hasattr(enemy, "fire_bullet") and callable(enemy.fire_bullet):
+                        enemy.fire_bullet(self.player.pos.x, self.player.pos.y)
+                test_spam_enemy_fire_time = 0.0
             
             # Clamp player position
             self.player.rect.clamp_ip(self.surface.get_rect())
@@ -348,6 +372,10 @@ class Game(object):
                             revival_particles = None
                             currently_reviving = False
 
+                            for item in self.player_group.upgrades:
+                                if hasattr(item, "reset"):
+                                    item.reset()
+
                             self.player.state = Player.States.IDLE
 
                         del group
@@ -356,6 +384,19 @@ class Game(object):
             if particle_timer > 1.0:
                 if (particle_group := self.player.health_indicator(self.offset.x)):
                     self.particles.append(particle_group)
+
+            if self.pop_up_sprites:
+                for pop_up in self.pop_up_sprites:
+                    pop_up.update(self.dt)
+                    if hasattr(pop_up, "draw"):
+                        pop_up.draw(self.gameplay_surface, self.offset.x)
+                    if hasattr(pop_up, "remaining_time"):
+                        if pop_up.remaining_time <= 0:
+                            pop_up.kill()
+                            self.pop_up_sprites.remove(pop_up)
+                            del pop_up
+                            continue
+ 
 
             self.score_check()
 
@@ -386,17 +427,33 @@ class Game(object):
                 bullet.update()
                 bullet.draw(self.surface)
 
-    def spawn_enemies(self, num: int) -> None:
+    def spawn_enemies(self, num_of_landers: int, num_of_mutants: int) -> None:
         """Spawn given number of enemies."""
-        min_distance = 200
-        for _ in range(num):
+        min_distance = SCREEN_WIDTH // 2
+        for _ in range(num_of_landers):
             while True:
-                spawn_x = random.randint(-WORLD_WIDTH // 2, WORLD_WIDTH // 2)
+                spawn_x = random.randint(
+                    -(WORLD_WIDTH // 2) + EDGE_SPAWN_BUFFER,
+                    (WORLD_WIDTH // 2) - EDGE_SPAWN_BUFFER
+                )
                 spawn_y = random.randint(TOP_WIDGET_HEIGHT, GAMEPLAY_HEIGHT)
                 if abs(spawn_x - self.player.pos.x) > min_distance or abs(spawn_y - self.player.pos.y) > min_distance:
                     break
             enemy = Enemy(spawn_x, spawn_y)
             self.enemy_group.add(enemy)
+
+        for _ in range(num_of_mutants):
+            while True:
+                spawn_x = random.randint(
+                    -(WORLD_WIDTH // 2) + EDGE_SPAWN_BUFFER,
+                    (WORLD_WIDTH // 2) - EDGE_SPAWN_BUFFER
+                )
+                spawn_y = random.randint(TOP_WIDGET_HEIGHT, GAMEPLAY_HEIGHT)
+                if abs(spawn_x - self.player.pos.x) > min_distance or abs(spawn_y - self.player.pos.y) > min_distance:
+                    break
+            enemy = Mutant(spawn_x, spawn_y)
+            self.enemy_group.add(enemy)
+        
     
     def score_check(self) -> None:
 
@@ -410,7 +467,7 @@ class Game(object):
     def update_and_draw_enemy_related(self) -> None:
         # Draw enemies
         for enemy in self.enemy_group.sprites():
-            enemy.update(self.offset.x, self.player, self.humanoid_group.sprites(), self.surface)
+            #enemy.update(self.offset.x, self.player, self.humanoid_group.sprites(), self.surface)
 
             if -(SCREEN_WIDTH * 0.2) < enemy.pos.x < SCREEN_WIDTH * 1.2:
                 enemy.draw(self.surface)
@@ -419,14 +476,21 @@ class Game(object):
             if self.player.hitbox_top.colliderect(enemy.rect) or self.player.hitbox_bottom.colliderect(enemy.rect):
                 if self.player.state != Player.States.DEAD:
                     self.player.gets_hit_by(enemy)
+                    # Enemy dies on collision with player
+                    self.particles.append(enemy.death())
+                    enemy.kill()
+                    continue
 
             # collision detection with player bullets
             if (collided_bullet := pg.sprite.spritecollideany(enemy, self.player.bullets)): # type: ignore
                 # hit enemy!
                 if getattr(enemy, "state", None) == EnemyState.CAPTURING:
+                    # reward more points and coins for preventing enemy from capturing
                     self.player_group.score += 250
+                    self.player_group.coins += 10
                 else:
                     self.player_group.score += 50
+                    self.player_group.coins += 5
                 self.particles.append(enemy.death())
 
                 if isinstance(collided_bullet, items.ChargedBullet):
@@ -438,6 +502,11 @@ class Game(object):
                 del enemy
 
         for ebullet in self.enemy_group.bullets:
+                if self.player.invulnerable:
+                    ebullet.update()
+                    ebullet.draw(self.surface, self.offset.x)
+                    continue
+    
                 # enemy bullet collision detection w/ player
                 if self.player.hitbox_top.colliderect(ebullet.rect) or self.player.hitbox_bottom.colliderect(ebullet.rect):
                     if self.player.state != Player.States.DEAD:
@@ -452,17 +521,23 @@ class Game(object):
                         self.enemy_group.bullets.remove(ebullet)
                         del ebullet
                         continue
+                
 
-                for item in self.player.items:
+                player_shield = None
+
+                for item in self.player_group.upgrades:
                     if isinstance(item, items.deployable_shield):
                         player_shield = item
                         
                 if player_shield:
-                    if pg.Rect.colliderect(player_shield.rect, ebullet.rect):
-                        self.enemy_group.bullets.remove(ebullet)
-                        item.health -= 20
-                        del ebullet
-                        continue
+                    if isinstance(item, items.deployable_shield):
+                        if pg.Rect.colliderect(player_shield.rect, ebullet.rect):
+                            self.enemy_group.bullets.remove(ebullet)
+                            item.health -= 20
+                            del ebullet
+                            continue
+
+
 
                 # off-screen culling
                 if ebullet.x + self.offset.x < SCREEN_WIDTH * -0.2 or ebullet.x + self.offset.x > SCREEN_WIDTH * 1.2 or ebullet.y > SCREEN_HEIGHT or ebullet.y < 0:
@@ -472,21 +547,29 @@ class Game(object):
 
                 ebullet.update()
                 ebullet.draw(self.surface, self.offset.x)
-            
-
+        
 
     def game_over(self) -> None:
         self.game_over_timer += self.dt
         self.gameplay_surface.blit(self.game_over_text, self.game_over_text_rect)
 
         if self.game_over_timer > 3.0:
-            self.main_menu()
+            self.running = False
+            return
 
     def generate_humanoids(self) -> None:
-        for i in range(self.initial_humanoids):
-            spawn_x: int = random.randint(EDGE_SPAWN_BUFFER - (WORLD_WIDTH//2), (WORLD_WIDTH//2) - EDGE_SPAWN_BUFFER)
-            spawn_y: int = GROUND_Y
-            #print(f"Humanoid spawned at ({spawn_x}, {spawn_y})")
+        for i in range(self.humanoids_left):
+            min_distance = SCREEN_WIDTH // 4
+            while True:
+                spawn_x: int = random.randint(
+                        -(WORLD_WIDTH // 2) + EDGE_SPAWN_BUFFER,
+                        (WORLD_WIDTH // 2) - EDGE_SPAWN_BUFFER
+                    )
+                spawn_y: int = GROUND_Y
+                
+                if abs(spawn_x - self.player.pos.x) > min_distance or abs(spawn_y - self.player.pos.y) > min_distance:
+                        break
+            print(f"Humanoid spawned at ({spawn_x}, {spawn_y})")
             self.humanoid_group.add(Humanoid(spawn_x, spawn_y))
 
         # add to mini_map
@@ -567,35 +650,68 @@ class Game(object):
             elif event.type == pg.KEYDOWN:
                     
                 # Fire bullet
-                if event.key == pg.K_SPACE:
+                if event.key == keybinds["shoot"]:
                     self.player.fire_bullet()
 
-                elif event.key == pg.K_p:
+                elif event.key == keybinds["smart_bomb"]:
                     self.smart_bomb()
                 
-                elif event.key == pg.K_j:
-                    for item in self.player.items:
-                        if isinstance(item, items.deployable_shield):
-                            item.deploy(self.player.pos)
+                #elif event.key == pg.K_j:
+                #    print("1")
+                #    for item in self.player_group.upgrades:
+                #        print(type(item))
+                #        if isinstance(item, items.deployable_shield):
+                #            item.deploy(self.player.pos)
+
+                elif event.key == keybinds["use_item_1"] and len(self.player.items) >= 1:
+                    self.player.items[0].use(self.player, dt=self.dt, particles=self.particles, keybinds=keybinds)
+
+                elif event.key == keybinds["use_item_2"] and len(self.player.items) >= 2:
+                    self.player.items[1].use(self.player, dt=self.dt, particles=self.particles, keybinds=keybinds)
+
+                elif event.key == keybinds["use_item_3"] and len(self.player.items) >= 3:
+                    self.player.items[2].use(self.player, dt=self.dt, particles=self.particles, keybinds=keybinds)
+
+                elif event.key == keybinds["use_item_4"] and len(self.player.items) >= 4:
+                    self.player.items[3].use(self.player, dt=self.dt, particles=self.particles, keybinds=keybinds)
+
                         
 
-                elif event.key == pg.K_F1: # self-destruct
+                elif event.key == pg.K_F1: # self-destruct (only meant for debugging and stuff)
                     if self.player.state != Player.States.DEAD:
                         self.particles.append(self.player.death())
 
     def game_loop(self) -> None:
         self.current_wave: int = 1
-        self.num_of_enemies: int = 10
+        self.num_of_landers: int = 10
+        self.num_of_mutants: int = 0
         while True:
+            if self.current_wave >= 3:
+                self.num_of_mutants += 1
+                self.num_of_mutants = min(self.num_of_mutants, 20)
             if self.play_game():
                 self.current_wave += 1
-                self.num_of_enemies += 5
+
+                self.num_of_landers += 3
+                self.num_of_landers = min(self.num_of_landers, 30)
+        
                 self.wave_screen()
+                if (self.current_wave + 1) % 2:
+                    shop = ShopUI(screen, self.player_group)
+                    shop.shop_loop(screen, screen, self)
+            else:
+                break
+
+    def reset_player(self) -> None:
+        self.player.pos = Vector2(0, SCREEN_HEIGHT // 4)
+        self.player.rect.center = self.player.pos
+        self.player.velocity = Vector2(0, 0)
+        self.player.accel_x = 0
+        self.player.accel_y = 0
+        self.player.state = Player.States.IDLE
     
     def wave_screen(self) -> None:
         """Displays attack wave in big text
-            Starts next round
-        
         """
         running: bool = True
         wait_counter: float = 0.0
@@ -608,6 +724,14 @@ class Game(object):
             wave_text_rect.center = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - (wave_text_rect.height * 2) + (line - 1) * (wave_text_rect.height + 10))
             self.surface.blit(wave_text, wave_text_rect)
 
+        self.humanoids_left = len(self.humanoid_group)
+
+        for humanoid in self.humanoid_group.sprites():
+                if humanoid.state == HumanoidState.CAPTURED:
+                    humanoid.state = HumanoidState.IDLE
+
+        self.enemy_group.baiters_active_timer = 0.0
+        self.enemy_group.baiter_timer = 0.0
 
         while running:
             for event in pg.event.get():
@@ -617,8 +741,7 @@ class Game(object):
             self.surface.fill(BLACK)
 
             render_wave_text(f"ATTACK WAVE {self.current_wave - 1} COMPLETED")
-            render_wave_text(f"HUMANOIDS LEFT: {len(self.humanoid_group)}", line=2)
-
+            render_wave_text(f"HUMANOIDS LEFT: {self.humanoids_left}", line=2)
             
             wait_counter += self.dt
 
@@ -626,6 +749,8 @@ class Game(object):
                 running = False
                 self.enemy_group.empty()
                 self.humanoid_group.empty()
+                self.mini_map.empty()
+                self.reset_player()
                 return
 
             screen.blit(self.surface, (0, 0))
@@ -639,23 +764,10 @@ class Game(object):
         pg.display.set_caption(WINDOW_TITLE)
         menu = pm.Menu('Defender Remake', SCREEN_WIDTH * 2 // 3, SCREEN_HEIGHT * 1 // 2,
                         theme=mytheme)
-        menu.add.button('Play', lambda: self.game_loop())
-        menu.add.button('Controls', lambda: self.controls())
+        menu.add.button('Play', lambda: menu.disable())
+        menu.add.button('Keybinds', lambda: misc.keybind_menu(screen, PRESS_START_FONT, keybinds))
         menu.add.button('About', lambda: self.about())
         menu.add.button('Quit', pm.events.EXIT)
-
-        menu.mainloop(screen)
-
-    def controls(self) -> None:
-        """Shows game controls."""
-        menu = pm.Menu('Controls', SCREEN_WIDTH * 2 // 3, SCREEN_HEIGHT * 2 // 3,
-                        theme=mytheme)
-        menu.add.label("""
-Move: WASD
-Shoot: Space
-Smart Bomb: P
-""")
-        menu.add.button('Return', lambda: self.main_menu())
         menu.mainloop(screen)
     
     def about(self) -> None:
@@ -669,8 +781,13 @@ Smart Bomb: P
 
 
 
-
-
 if __name__ == "__main__":
-    game = Game()
-    game.main_menu()
+    while True:
+    
+        master_game = Game()
+
+        master_game.main_menu()
+        master_game.game_loop()
+
+        screen.fill((0, 0, 0))
+        pg.display.flip()

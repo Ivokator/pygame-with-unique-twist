@@ -35,13 +35,13 @@ DARKER_GREY: tuple[int, int, int] = (32, 32, 32)
 SYSFONT = pg.font.get_default_font()
 DEFAULT_FONT = pg.font.SysFont(SYSFONT, 24)
 PRESS_START_FONT = pg.font.Font(os.path.join("fonts", "PressStart2P-Regular.ttf"), 28)
-ARIAL_FONT = pg.font.SysFont('arial', 28)
+SMALL_BUTTON_FONT = pg.font.Font(os.path.join("fonts", "PressStart2P-Regular.ttf"), 18)
+
 # Pygame Menu Themes
 mytheme = pm.themes.Theme(title_bar_style=pm.widgets.MENUBAR_STYLE_NONE,
                           title_font_color = DARK_GREY,
                           title_font = PRESS_START_FONT,
                           title_font_size = 50,
-                          title = True,
                           title_offset=(25,25),
 
                           selection_color = DARKER_GREY,
@@ -51,12 +51,31 @@ mytheme = pm.themes.Theme(title_bar_style=pm.widgets.MENUBAR_STYLE_NONE,
                           widget_font_size = RESOLUTION[0] // 30,
                           )
 
+label_pop_up_theme = pm.themes.Theme(title_bar_style=pm.widgets.MENUBAR_STYLE_NONE,
+                                     title_font_color = WHITE,
+                                     title_font = PRESS_START_FONT,
+                                     title_font_size = 50,
+                                     title_offset=(25,25),
+                                     title_close_button = True,
+
+                                     title_close_button_cursor = pg.SYSTEM_CURSOR_HAND,
+                                     fps = FRAMES_PER_SECOND,
+                                     background_color = (20,20,20,50),
+
+                                     widget_font = PRESS_START_FONT,
+                                     widget_font_color = WHITE,
+                                     widget_font_size = RESOLUTION[0] // 30,
+
+
+)
+
 # ---------------------------- MISC CONSTANTS ----------------------------
 # do not change unless you know what you're doing!!
 
 TOP_WIDGET_HEIGHT = SCREEN_HEIGHT // 6
 TOP_WIDGET_LINE_THICKNESS: int = 20
 GAMEPLAY_HEIGHT = SCREEN_HEIGHT - TOP_WIDGET_HEIGHT
+CAPTURE_HEIGHT = GAMEPLAY_HEIGHT // 8
 
-EDGE_SPAWN_BUFFER: int = SCREEN_WIDTH // 2
+EDGE_SPAWN_BUFFER: int = SCREEN_WIDTH // 8
 GROUND_Y: int = GAMEPLAY_HEIGHT * 7 // 8
